@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<views1:GrEdit xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			  xmlns:s="library://ns.adobe.com/flex/spark" 
+			  xmlns:mx="library://ns.adobe.com/flex/mx" 
+			  xmlns:views="com.sg.components.views.*" 
+			  xmlns:Layouts="com.sg.components.spark.Layouts.*"
+			  xmlns:controls="ppf.tool.components.spark.components.controls.*"
+			  width="350" height="160" xmlns:containers="com.sg.components.spark.components.containers.*" xmlns:controls1="com.sg.components.spark.components.controls.*" xmlns:containers1="ppf.tool.components.spark.components.containers.*" xmlns:views1="ppf.tool.components.views.*">
+	<fx:Declarations>
+		<mx:StringValidator id="v_name" 
+							source="{t_name}" 
+							requiredFieldError="{SgResourceManager.getTipString('TIP_AUTH_020')}"
+							property="text" 
+							minLength="{t_name.minChars}"
+							maxLength="100"/> 
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import com.grusen.constants.AuthValueConst;
+			import com.grusen.constants.LocaleExtendConst;
+			import com.grusen.events.ModelEvent;
+			import com.grusen.managers.SgResourceManager;
+			import com.grusen.model.GlobalModel;
+			import com.grusen.model.vo.Auth;
+			import com.grusen.services.ServiceConst;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			import mx.rpc.events.ResultEvent;
+			
+			import ppf.tool.auth.AuthConst;
+			import ppf.tool.components.ValidUtil;
+			import ppf.tool.rpc.managers.RPCManager;
+			import ppf.tool.text.RestrictUtil;
+			
+			
+			override public function onModifyItem(item:Object):void
+			{
+				super.onModifyItem(item);	
+				var auth:Auth = item as Auth;
+				t_name.text = auth.name;
+				t_auth.text = String(auth.value);
+			}
+			override protected function resume():void
+			{
+				super.resume();
+				t_name.text = "";
+				t_auth.text = "";
+			}
+			
+			override protected function onApply(event:MouseEvent,isSubmit:Boolean=true):Boolean
+			{
+				if (super.onApply(event,isSubmit))
+				{
+					var auth:Auth = new Auth;
+					
+					auth.name = t_name.text;
+					auth.value = int(t_auth.text);
+					
+					if (!isAdd && null != modifyItem)
+						auth.id = modifyItem.id;
+					else
+						auth.id  = 0;
+					
+					RPCManager.call(ServiceConst.DS_MAINHANDLER,"UpdateAuth",auth);
+				}
+				return true;
+			}
+			
+			override protected function onResult(event:ResultEvent):void
+			{
+				super.onResult(event);
+				GlobalModel.getInstance().authDao.reLoadAuth();
+			}
+			
+			override protected function regValidators():void
+			{
+				ValidUtil.registerValidatorsOnPopUp(this,[v_name]);
+			}
+			
+			override protected function doValid():Boolean
+			{
+				var isValidForm:Boolean;
+				isValidForm = ValidUtil.validForm(this,false,v_name);
+				//其他验证无问题，判断authId是否重复
+				if (isValidForm)
+				{
+					var authValue:int = int(t_auth.text);
+					
+					//添加、修改时authID不同时，判断authId是否重复
+					if (isAdd || (!isAdd && authValue != modifyItem.value))
+					{
+						var authArr:ArrayCollection = GlobalModel.getInstance().authDao.getAuthList();
+						for each (var auth:Auth in authArr)
+						{
+							if (auth.value == authValue)
+							{
+								//"权限重复"
+								Alert.show(SgResourceManager.getTipString('TIP_AUTH_001'),SgResourceManager.getString(LocaleExtendConst.PUBLIC,'PUBLIC_OP_010'),Alert.OK|Alert.NONMODAL);
+								isValidForm = false;
+								break;
+							}
+						}
+					}
+				}
+				return isValidForm;
+			}
+			/**
+			 * 检测界面的权限状态 
+			 */	
+			override protected function checkAuth():void
+			{
+//				isEdit = AuthUtil.checkAuth(AuthValueConst.A_AUTH_EDIT_MANAGE);
+				if (isAdd)
+					auth_btnApply = true;
+				else
+					auth_btnApply = isEdit;
+			}
+		]]>
+	</fx:Script>
+	<containers1:Form width="100%" height="100%">
+		<!--SET_AUTH_041-->
+		<!--权限名称-->
+		<containers1:FormItem label="{SgResourceManager.getSetString('SET_AUTH_041')}" width="100%" required="true">
+			<controls:TextInput id="t_name" width="100%" maxChars="25" editable="{isEdit}" restrict="{RestrictUtil.FILENAME_REG}"/>
+		</containers1:FormItem>
+		<!--权限值-->
+		<containers1:FormItem label="{SgResourceManager.getSetString('SET_AUTH_042')}" width="100%" required="true">
+			<controls:TextInput id="t_auth" width="100%" restrict="{AuthConst.isSuperAdmin?RestrictUtil.INT_REG:RestrictUtil.POSITIVE_INT_REG}" maxChars="6" editable="{isEdit}"/>
+		</containers1:FormItem>
+	</containers1:Form>
+</views1:GrEdit>

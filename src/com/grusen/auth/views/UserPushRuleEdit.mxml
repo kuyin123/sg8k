@@ -1,0 +1,423 @@
+<?xml version="1.0" encoding="utf-8"?>
+<views:GrEdit xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			  xmlns:s="library://ns.adobe.com/flex/spark" 
+			  xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:views="ppf.tool.components.views.*" 
+			  width="330" height="230" xmlns:controls="ppf.tool.components.spark.components.controls.*" 
+			  xmlns:controls1="ppf.tool.components.mx.components.controls.*"  >
+	<fx:Script>
+		<![CDATA[
+			import com.grusen.constants.AuthValueConst;
+			import com.grusen.constants.LocaleExtendConst;
+			import com.grusen.constants.NodeTypeConst;
+			import com.grusen.interfaces.IMachine;
+			import com.grusen.interfaces.IOrganization;
+			import com.grusen.managers.SgResourceManager;
+			import com.grusen.model.GlobalModel;
+			import com.grusen.model.vo.FilterRule;
+			import com.grusen.model.vo.Machine;
+			import com.grusen.model.vo.TreeItem;
+			import com.grusen.model.vo.User;
+			import com.grusen.services.ServiceConst;
+			import com.grusen.utils.OrganizationUtil;
+			
+			import flash.utils.setTimeout;
+			
+			import mx.collections.ArrayCollection;
+			import mx.collections.ArrayList;
+			import mx.controls.Alert;
+			import mx.events.ListEvent;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			
+			import ppf.tool.auth.AuthUtil;
+			import ppf.tool.rpc.RPCHelper;
+			import ppf.tool.rpc.managers.RPCManager;
+		 
+			private var _initRule:Object;
+			private var rpc:RPCHelper = new RPCHelper();
+			
+			private var _ssobj:Object = {label:SgResourceManager.getSystemString("SYSTEM_ALARM_011"),value:6};
+			
+			[Bindable]
+			protected var eventTypeArr:ArrayCollection = new ArrayCollection([{label:SgResourceManager.getSystemString("SYSTEM_ALARM_008"),value:5},
+				{label:SgResourceManager.getSystemString("SYSTEM_ALARM_009"),value:3},
+				{label:SgResourceManager.getSystemString("SYSTEM_TPVALUE_031"),value:105},
+				{label:SgResourceManager.getSystemString("SYSTEM_TPVALUE_028"),value:104},
+				{label:SgResourceManager.getSystemString("SYSTEM_TPVALUE_029"),value:103},
+				{label:SgResourceManager.getSystemString("SYSTEM_TPVALUE_030"),value:102},
+				{label:SgResourceManager.getSystemString("SYSTEM_TPVALUE_032"),value:101},
+				{label:SgResourceManager.getSystemString("SYSTEM_TPVALUE_033"),value:100}]);
+			
+			override protected function onComplete():void{
+				super.onComplete();
+  	 
+				//if(rd_machine.selected)
+				refreshTree();
+		 
+				if(eventTypeArr.length < 9){
+					eventTypeArr.addItemAt(_ssobj , 2);
+				}
+  				
+			}
+			
+			public function set initRule(value:Object):void{
+				_initRule = value;
+			}
+			
+			/**
+			 * 检测界面的权限状态 
+			 */	
+			override protected function checkAuth():void
+			{
+ 				isEdit = AuthUtil.checkAuth(AuthValueConst.USER_RULE_SETTING);
+				auth_btnApply = isEdit;
+			}
+			
+			private function getUserAction(userId:int):String{
+				var ulist:ArrayCollection =  GlobalModel.getInstance().authDao.getUserList();
+				if(ulist  &&  ulist.length > 0){
+					for each(var u:User in ulist){
+						if(u.id == userId){
+							return u.actions;
+						}
+					}
+				}
+				return null;
+			}
+			
+			private function getUserTree(uid:int):ArrayCollection{
+				var mt:ArrayCollection = GlobalModel.getInstance().cloneTree(true);
+				var uact:String  = getUserAction(uid);
+				if(uact){
+					if(uact == "-1")
+					   return mt;
+					else{
+					   filterTree(mt , uact);
+					}
+				}else
+					return new ArrayCollection();
+				return mt;
+			}
+			
+			private function filterTree(arr:ArrayCollection , act:String):Boolean{
+				var isSave:Boolean = false;
+				if(!arr  || arr.length <= 0)
+					return isSave;
+				for(var i:int=0;i<arr.length;i++){
+					var ti:TreeItem = TreeItem(arr.getItemAt(i));
+					var org:IOrganization =  ti.value;
+					if(!org)
+						continue;
+					var ind:int = act.indexOf("|" + org.id + "|");
+					if(ind < 0){
+						var iss:Boolean = filterTree(ti.children , act);
+						if(!iss){
+							arr.removeItemAt(i);
+							i --;
+						}
+					}else{
+						isSave = true;
+					}
+				}
+				return isSave;
+			}
+			
+			override protected function resume():void
+			{
+				super.resume();
+				
+				terminalType.selectedValue = 0;
+				orgType.selectedValue = 0;
+				//if(shieldOrg){
+				refreshTree();
+				//}
+				//shieldOrg.dataProvider = GlobalModel.getInstance().cloneTree(true);
+				shieldOrg.initValue = "";
+				shieldOrg.m_selectObjectType = "Machine";
+				//eventType.dataProvider = macEventType;
+				if(eventType.dataProvider.length > 0)
+				    eventType.selectedIndex = 0;
+				
+				//_initRule = null;
+ 				
+			}
+			
+			
+			override protected function onApply(event:MouseEvent,isSubmit:Boolean=true):Boolean
+			{
+				if (super.onApply(event,isSubmit)){
+			 
+ 				   var rule:FilterRule = new FilterRule();
+				   
+				   if(!shieldOrg.m_value || String(shieldOrg.m_value) == "" || !isTrueNodeId(String(shieldOrg.m_value)) ){
+					   Alert.show("请选择屏蔽机组或测点" , "提示");
+					   this.enabled = true;
+					   return true;
+				   }
+				   
+				   var haslist:ArrayCollection = _initRule.hasRule as ArrayCollection;
+				   if(haslist && haslist.length > 0){
+					   for each(var ru:FilterRule in haslist){
+						   if(!isAdd  && FilterRule(modifyItem).ruleid == ru.ruleid )
+ 							   continue;
+						   if(ru.orgidList == String(shieldOrg.m_value)  && ru.filterType  == String(eventType.selectedItem.value) && ru.platform == int(terminalType.selectedValue) ){
+							   Alert.show("该对象对应的事件已屏蔽，请勿重复设置","提示");
+							   this.enabled = true;
+							   return true;
+						   }
+					   }
+				   }
+				   
+			 
+				   if(isAdd){
+					   rule.phone = _initRule.phone;
+					   rule.userId = _initRule.userId;	
+					   
+					   /*var haslist:ArrayCollection = _initRule.hasRule as ArrayCollection;
+					   if(haslist && haslist.length > 0){
+						   for each(var ru:FilterRule in haslist){
+							   if(ru.orgidList == String(shieldOrg.m_value)  && ru.filterType  == String(eventType.selectedItem.value)){
+								   Alert.show("该对象对应的事件已屏蔽，请勿重复设置","提示");
+								   this.enabled = true;
+								   return true;
+							   }
+						   }
+					   }*/
+					   
+				   }else{
+					   if(!modifyItem)
+						   return false;
+					   var mor:FilterRule = FilterRule(modifyItem);
+					   rule.ruleid = mor.ruleid;
+					   rule.userId = mor.userId;
+					   rule.phone = mor.phone;
+ 				   }
+				 
+				   rule.orgidList = String(shieldOrg.m_value);
+				   rule.platform = int(terminalType.selectedValue);
+				   rule.ruleType = int(orgType.selectedValue);
+				   rule.filterType = String(eventType.selectedItem.value);
+			 
+				   RPCManager.call(ServiceConst.DS_MAINHANDLER , "UpdateFilterRule" , rule );
+				}
+				
+				return true;
+			}
+			
+			private function isTrueNodeId(id:String):Boolean{
+				if(!GlobalModel.getInstance().getPosById(id)  &&  !GlobalModel.getInstance().getMachineById(id) ){
+					return false;
+				}else
+					return true;
+			}
+			
+			
+			override protected function onResult(event:ResultEvent):void
+			{
+				super.onResult(event);
+				this.dispatchEvent(new Event("reloadRules"));
+  				Alert.show(SgResourceManager.getTipString('TIP_BASE_011'),SgResourceManager.getString(LocaleExtendConst.PUBLIC,'PUBLIC_OP_010'));
+			}
+	 
+			override public function onModifyItem(item:Object):void
+			{
+				super.onModifyItem(item);
+				
+				if(!item is FilterRule)
+					return;
+				
+				var rule:FilterRule = FilterRule(item);
+				
+				terminalType.selectedValue = rule.platform;
+				orgType.selectedValue = rule.ruleType;
+ 		 
+				if(orgType.selectedValue == 1){
+					shieldOrg.m_selectObjectType = "Position";
+					if(eventTypeArr.length > 8){
+						eventTypeArr.removeItemAt(2);
+					}
+					//var etype:Array = macEventType.source as Array;
+					//etype = etype.concat([]);
+					//etype.pop();
+					//eventType.dataProvider = new ArrayCollection(etype);
+ 				}else{
+					shieldOrg.m_selectObjectType = "Machine";
+					if(eventTypeArr.length < 9){
+						eventTypeArr.addItemAt(_ssobj , 2);
+					}
+				    //eventType.dataProvider = macEventType;
+				}
+				
+				setOrgTree(rule.orgidList);
+				
+				var etypeint:int = int(rule.filterType);
+ 				eventType.selectedIndex = getEventTypeIndex(etypeint);
+   				
+			}
+			
+			private function getEventTypeIndex(type:int):int{
+				var selist:ArrayCollection = ArrayCollection(eventType.dataProvider); 
+				for(var i:int=0;i<selist.length;i++){
+					if(selist.getItemAt(i).value == type)
+						return i;
+				}
+				return -1;
+			}
+			
+			private function setOrgTree(orgid:String):void{
+				if(orgid && orgid.indexOf(",") < 0){
+					if(orgType.selectedValue == 1 ){
+	
+						//如果是测点屏蔽规则则需要将机组信息获取完整
+						var macid:String = orgid.substr(0 , orgid.length - 4);
+						var mac:IMachine = GlobalModel.getInstance().getMachineById(macid);
+						
+						if(!mac){
+							this.enabled = false;
+							GlobalModel.getInstance().requestMachine(macid , true);
+							setTimeout( setOrgTree , 1000 , orgid);
+							return;
+						}else{
+							this.enabled = true;
+							var olist:ArrayCollection = ArrayCollection(shieldOrg.dataProvider);
+							if(!olist  || olist.length <= 0)
+								return;
+							var mactree:TreeItem = OrganizationUtil.getOrgItemFromList(macid , olist  ,  "id" , "children");
+							if(!mactree)
+								return;
+							GlobalModel.getInstance().createMachineTree(Machine(mac) , mactree , true);
+   						}
+						
+ 					}
+					shieldOrg.initValue = orgid;
+				}
+			}
+			
+		 
+ 			
+			override public function onInit(event:Event=null):void
+			{
+  				if(isAdd){
+					shieldOrg.m_selectObjectType = "Machine";
+					//shieldOrg.dataProvider = GlobalModel.getInstance().cloneTree(true);
+					refreshTree()
+					shieldOrg.initSelected();
+					terminalType.selectedValue = 0;
+					orgType.selectedValue = 0;
+					if(eventTypeArr.length < 9){
+						eventTypeArr.addItemAt(_ssobj , 2);
+					}
+					//eventType.dataProvider = macEventType;
+					if(eventType.dataProvider.length > 0)
+						eventType.selectedIndex = 0;
+				}
+			}
+			
+			protected function itemClickFun(e:ListEvent):void{
+				if(e.itemRenderer){
+					//var orgtype:int = e.itemRenderer.data.type;
+					//如果是测点类型，点击机组的时候就要显示出测点数据
+					if(TreeItem(e.itemRenderer.data).value is Machine    &&  orgType.selectedValue == 1){
+						showMachineChildren( TreeItem( e.itemRenderer.data ) );
+					}
+				}
+			}
+			
+			private function showMachineChildren(macItem:TreeItem):void{
+				var macId:String = macItem.id;
+				if(!macItem.children   ||  macItem.children.length <= 0){
+					
+					GlobalModel.getInstance().requestMachine( macId  , true);
+					var mac:Machine = Machine(GlobalModel.getInstance().getMachineById(macId));
+					
+					if(mac){
+						this.enabled = true;
+						macItem.children = GlobalModel.getInstance().createMachineTree(mac,macItem,true);
+						//ArrayCollection(t_company.dataProvider).refresh();
+					}else{
+						this.enabled = false;
+						setTimeout(showMachineChildren , 2000 , macItem);
+					}
+				}
+			}
+			
+			private function refreshTree():void{
+				if(!shieldOrg)
+					return;
+				if(_initRule){
+					shieldOrg.dataProvider = getUserTree(_initRule.userId);
+					//shieldOrg.dataProvider = GlobalModel.getInstance().cloneTree(true);
+				}else if(modifyItem){
+					shieldOrg.dataProvider = getUserTree(User(modifyItem).id);
+				}else{
+					shieldOrg.dataProvider = GlobalModel.getInstance().cloneTree(true);
+				}
+			}
+			
+ 			
+			protected function orgTypeChange(event:Event):void
+			{
+				shieldOrg.initValue = "";
+				
+				if(orgType.selectedValue  ==  0){
+					//机组类型则重新加载机组对象
+					refreshTree();
+					shieldOrg.m_selectObjectType = "Machine";
+				}else{
+					shieldOrg.m_selectObjectType = "Position";
+				}
+		 
+ 				if(orgType.selectedValue == 1){
+					//var etype:Array = macEventType.source as Array;
+					//etype = etype.concat([]);
+					//etype.pop();
+					//eventType.dataProvider = new ArrayCollection(etype);
+					if(eventTypeArr.length > 8){
+						eventTypeArr.removeItemAt(2);
+					}
+				}else{
+					//eventType.dataProvider = macEventType;
+					if(eventTypeArr.length < 9){
+						eventTypeArr.addItemAt(_ssobj , 2);
+					}
+				}
+				
+				eventType.selectedIndex  =  0;
+ 				
+			}
+			
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<s:RadioButtonGroup id="terminalType" />
+		<s:RadioButtonGroup id="orgType"  change="orgTypeChange(event)"/>
+		<!-- 将非可视元素（例如服务、值对象）放在此处 -->
+	</fx:Declarations>
+	<mx:Form width="100%" height="100%">
+		<!--适用终端-->
+		<mx:FormItem label="{SgResourceManager.getSetString('SET_AUTH_056')}" width="100%"  >
+			<mx:HBox width="100%" paddingLeft="15">
+				<s:RadioButton id="rd_app"  groupName="terminalType" label="APP" selected="false" value="1"
+							   skinClass="com.grusen.components.skins.SgRadioButtonSkin"/>
+				<s:RadioButton id="rd_sms" groupName="terminalType" label="{SgResourceManager.getSetString('SET_AUTH_058')}"  selected="true" value="0"
+							   skinClass="com.grusen.components.skins.SgRadioButtonSkin"/>							
+			</mx:HBox>
+		</mx:FormItem>
+		<!--类型-->
+		<mx:FormItem label="{SgResourceManager.getSetString('SET_RULE_002')}" width="100%" >
+			<mx:HBox width="100%" paddingLeft="15">
+				<s:RadioButton id="rd_machine"  groupName="orgType" label="{SgResourceManager.getSetString('SET_AUTH_059')}" selected="true" value="0"
+							   skinClass="com.grusen.components.skins.SgRadioButtonSkin"/>
+				<s:RadioButton id="rd_position" groupName="orgType" label="{SgResourceManager.getSetString('SET_AUTH_060')}"  selected="false" value="1"
+							   skinClass="com.grusen.components.skins.SgRadioButtonSkin"/>							
+			</mx:HBox>
+		</mx:FormItem>
+		<mx:FormItem label="{SgResourceManager.getSetString('SET_AUTH_055')}" width="100%" >
+			<controls1:DropDownList id="shieldOrg" width="100%" isTree="true" itemValueField="id" itemClickFun="itemClickFun"   m_selectObjectType="Machine" textAlign="left"  />
+		</mx:FormItem>
+		<mx:FormItem label="{SgResourceManager.getSetString('SET_AUTH_057')}" width="100%" >
+			<s:DropDownList id="eventType"  dataProvider="{eventTypeArr}"  width="120"  />
+		</mx:FormItem>
+	 
+	</mx:Form>
+</views:GrEdit>

@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<control:AutoExportReportFrame xmlns:fx="http://ns.adobe.com/mxml/2009" 
+							   xmlns:s="library://ns.adobe.com/flex/spark" 
+							   xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:control="com.grusen.autoexportreport.control.*" width="100%" height="100%" creationComplete="init(event)" xmlns:controls="ppf.tool.components.mx.components.controls.*" xmlns:skins="com.grusen.components.skins.*">
+	<fx:Script>
+		<![CDATA[
+			import com.grusen.autoexportreport.event.ListClickEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.events.FlexEvent;
+			
+			import spark.events.IndexChangeEvent;
+			
+			[Bindable]
+			public var machineTreeData:ArrayCollection = new ArrayCollection();//所有任务
+			
+			 
+			/**
+			 *是否正在生成报告 
+			 */
+			[Bindable]
+			public var _isGeneratingReport:Boolean = false;
+			
+			protected function init(event:FlexEvent):void
+			{
+				// TODO Auto-generated method stub
+			}
+			override protected function createChildren():void
+			{
+				super.createChildren();
+				
+				report_type.dataProvider = new ArrayCollection([
+					{label: "月度报告", value: "01"},
+					{label: "季度报告", value: "02"}/* ,
+					{label: "年度报告", value: "03"},
+					{label: "临时报告", value: "04"} */
+				]);
+				
+				logTextArea.addEventListener(FlexEvent.VALUE_COMMIT,onValueCommit);  
+			}
+			
+			private function onValueCommit(event:FlexEvent):void{  
+				  
+			   //下面这句代码就是关键了  
+			   logTextArea.verticalScrollPosition=logTextArea.maxVerticalScrollPosition;  
+			}
+			
+			protected function StartOrStopDoTask(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				
+			}
+			protected function clearLog(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				logTextArea.text =  "";
+			}
+			
+			protected function removeItemClickHandler(event:ListClickEvent):void
+			{
+				// TODO Auto-generated method stub
+				
+			}
+			
+			protected function report_type_changeHandler(event:IndexChangeEvent = null):void
+			{
+				var td:Date=new Date();
+				var fd:Date=new Date(td.time);
+				switch(report_type.selectedItem.value)
+				{
+					case "01":  //月度报告
+						fd.month -= 1;
+						fd.date -= 1;
+						break;
+					case "02":  //季度报告
+						fd.month -= 3;
+						fd.date -= 1;
+						break;
+					case "03":  //年度报告
+						fd.fullYear -= 1;
+						fd.date -= 1;
+					case "04":  //临时报告
+						fd.date -= 1;
+						break;
+				}
+				
+				startDateField.selectedDate = fd;
+				endDateField.selectedDate = td;
+				
+			}
+			
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- 将非可视元素（例如服务、值对象）放在此处 -->
+	</fx:Declarations>
+	<s:HGroup width="100%" height="100%">
+		<s:VGroup width="300" height="100%">
+			<s:FormHeading label="任务列表"/>
+			<s:BorderContainer width="100%" height="100%">
+				<control:TaskListTree id="machineTree"  itemRenderer="com.grusen.autoexportreport.view.TaskListItemRenderer"  mouseEnabled ="{!_isGeneratingReport}" dataProvider="{machineTreeData}"  width="100%" height="100%" borderVisible="false"  removeItemClick="removeItemClickHandler(event)"/>
+			</s:BorderContainer>
+		</s:VGroup>
+		<s:VGroup width="100%" height="100%" gap="0">
+			<s:HGroup width="100%" gap="0">
+				<s:Form width="300"  id="form1">
+					<s:FormItem label="测点名称" >
+						<s:layout>
+							<s:HorizontalLayout/>
+						</s:layout>
+						<s:RadioButton id="rd_machine" groupName="radi" label="使用机组配置" selected="true"
+									   skinClass="com.grusen.components.skins.SgRadioButtonSkin" width="100%">
+						</s:RadioButton>
+						<s:Spacer width="10"/>
+						<s:RadioButton id="rd_item" groupName="radi" label="使用位号"
+									   skinClass="com.grusen.components.skins.SgRadioButtonSkin" width="100%">
+						</s:RadioButton>
+					</s:FormItem>
+					<s:FormItem  label="撰写人" >
+						<controls:TextInput id="authorText" width="100%"  maxChars="20"/>
+					</s:FormItem>
+					<s:FormItem  label="审批人" >
+						<controls:TextInput id="approverText" width="100%" maxChars="20"/>
+					</s:FormItem>
+					<s:FormItem  label="批准人" >
+						<controls:TextInput id="auditorText" width="100%" maxChars="20"/>
+					</s:FormItem>
+					
+				</s:Form>
+				<s:Form width="350" id="form2">
+					<s:FormItem label="启停机模块" >
+						<s:layout>
+							<s:HorizontalLayout/>
+						</s:layout>
+						<s:RadioButton id="rd_need" groupName="rss" label="需要" selected="true"
+										skinClass="com.grusen.components.skins.SgRadioButtonSkin" width="100%">
+						</s:RadioButton>
+						<s:Spacer width="10"/>
+						<s:RadioButton id="rd_unneed" groupName="rss" label="不需要"
+									   skinClass="com.grusen.components.skins.SgRadioButtonSkin" width="100%">
+						</s:RadioButton>
+					</s:FormItem>
+					<s:FormItem label="报告类型" >
+						<s:DropDownList id="report_type" skinClass="com.grusen.components.skins.SgDropDownListSkin"  change="report_type_changeHandler(event)"
+										selectedIndex="0"  width="100%"/>
+					</s:FormItem>
+					<s:FormItem  label="开始日期" >
+						<mx:DateField id="startDateField" width="100%" formatString="YYYY-MM-DD" monthSymbol="" monthNames='["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"]' 
+									  selectedDate="{new Date((new Date()).time - 2678400000)}" showToday="true"/>
+					</s:FormItem>
+					<s:FormItem label="结束日期" >
+						<mx:DateField id="endDateField"  width="100%" formatString="YYYY-MM-DD" monthSymbol="" monthNames='["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"]' 
+									  selectedDate="{new Date()}" showToday="true"/>
+					</s:FormItem>
+				</s:Form>
+			</s:HGroup>
+			
+			<s:BorderContainer width="100%" borderVisible="false" height="60">
+				<s:layout>
+					<s:HorizontalLayout gap="10" paddingLeft="80" verticalAlign="middle"/>
+				</s:layout>
+				<s:Button id="startCreateBtn" label="开始生成" click="StartOrStopDoTask(event)" skinClass="com.grusen.components.skins.SgButtonSkin"/>
+				<s:Button id="clearLogBtn" label="清除日志" click="clearLog(event)" skinClass="com.grusen.components.skins.SgButtonSkin"/>
+			</s:BorderContainer>
+			<mx:TextArea id="logTextArea" width="100%" height="100%" editable="false"/>
+			<!--<s:BorderContainer width="100%" height="100%">
+				<mx:UIComponent width="100%" height="100%" id="imgui"/>
+			</s:BorderContainer>-->
+		</s:VGroup>
+	</s:HGroup>
+	
+	
+	
+</control:AutoExportReportFrame>

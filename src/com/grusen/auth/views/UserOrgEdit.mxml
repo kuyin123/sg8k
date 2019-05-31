@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="utf-8"?>
+<views1:GrEdit xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			   xmlns:s="library://ns.adobe.com/flex/spark" 
+			   xmlns:mx="library://ns.adobe.com/flex/mx" 
+			   xmlns:views="com.sg.components.views.*" 
+			   xmlns:Layouts="com.grusen.spark.Layouts.*" 
+			   xmlns:controls="com.grusen.spark.components.controls.*"
+			   xmlns:controls1="com.grusen.mx.components.controls.*"
+			   width="500" height="400" xmlns:containers="com.grusen.spark.components.containers.*" xmlns:controls2="com.grusen.components.controls.*" xmlns:controls3="com.sg.components.spark.components.controls.*" xmlns:controls4="ppf.tool.components.spark.components.controls.*" xmlns:views1="ppf.tool.components.views.*">
+	<fx:Declarations>
+		<!-- 将非可视元素（例如服务、值对象）放在此处 -->
+		
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import com.grusen.constants.AuthValueConst;
+			import com.grusen.events.ModelEvent;
+			import com.grusen.managers.SgResourceManager;
+			import com.grusen.model.GlobalModel;
+			import com.grusen.model.XmlDao;
+			import com.grusen.model.vo.Organization;
+			import com.grusen.model.vo.Role;
+			import com.grusen.model.vo.TreeItem;
+			import com.grusen.services.ServiceConst;
+			import com.grusen.utils.OrganizationUtil;
+			
+			import flash.utils.clearTimeout;
+			import flash.utils.setTimeout;
+			
+			import mx.collections.ArrayCollection;
+			import mx.collections.XMLListCollection;
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			
+			import ppf.tool.auth.AuthConst;
+			import ppf.tool.auth.AuthUtil;
+			import ppf.tool.components.ValidUtil;
+			import ppf.tool.rpc.managers.RPCManager;
+			import ppf.tool.text.RestrictUtil;
+			
+			override public function onInit(event:Event=null):void
+			{ 
+				if (null!= modifyItem) //修改角色时
+				{
+//					authDataProvider = getTree();
+//					setTimeout(treeExpandAll,80);
+					getUserActions(modifyItem.id);
+				}
+				//else                 //添加新角色时
+				//authDataProvider = GlobalModel.getInstance().authDao.getAuthList();//添加角色
+				
+			}
+			
+			override public function onModifyItem(item:Object):void
+			{
+				super.onModifyItem(item);
+				tiName.text = item.name;
+				
+				//if(null==modifyItem.valueList)
+				//return;
+				
+				getUserActions(item.id);
+				
+			}
+			
+			/**
+			 * 获取用户权限
+			 */
+			private function getUserActions(userId:int):void{
+				RPCManager.caller.onResult = onGetUserActionsResult;
+				RPCManager.caller.onFault = onGetUserActionsFault;
+				RPCManager.call(ServiceConst.DS_GET_SETUP,"GetUserActionsById", userId );
+			}
+			protected function onGetUserActionsResult(event:ResultEvent):void
+			{
+				  
+				authDataProvider = getTree(String(event.result));
+				setTimeout(treeExpandAll,80);
+				 
+			}
+			protected function onGetUserActionsFault(event:FaultEvent):void
+			{
+				Alert.show("获取权限失败");
+			}
+			
+			
+			override protected function resume():void
+			{
+				super.resume();
+				tiName.text = "";
+			}
+			
+			override protected function onApply(event:MouseEvent,isSubmit:Boolean=true):Boolean
+			{
+				if (super.onApply(event,isSubmit))
+				{
+					var orgIds:ArrayCollection = getAuthIdFromTree(authDataProvider);
+					RPCManager.call(ServiceConst.DS_MAINHANDLER,"UpdateOrganizationPurview",  modifyItem.id.toString()  , orgIds );
+				}
+				return true;
+			}
+			override protected function onResult(event:ResultEvent):void
+			{
+				super.onResult(event);
+				GlobalModel.getInstance().authDao.reLoadUser();
+			}
+			
+			
+			/**
+			 * 检测界面的权限状态 
+			 */	
+			override protected function checkAuth():void
+			{
+				isEdit=AuthUtil.checkAuth(AuthValueConst.USER_ORG_EDIT);
+				auth_btnApply = isEdit;
+			}
+			
+			private function treeExpandAll():void
+			{
+				clearTimeout(timeOut);
+				authTree.expandAll(true);
+			}
+			
+			private function getAuthIdFromTree(arr:ArrayCollection):ArrayCollection{
+				
+				var res:ArrayCollection = new ArrayCollection();
+				
+				for each (var item:Object in arr){
+					if(item.containState == 1){
+						res.addItem( item.id );
+						var resSub0:ArrayCollection = getAuthIdFromTree(item.children);
+						if(resSub0 && resSub0.length > 0){
+							res.addAll(resSub0.list);
+						}
+					}else if(item.containState == 2){
+						if(item.children){
+							var resSub:ArrayCollection = getAuthIdFromTree(item.children);
+							if(resSub && resSub.length > 0){
+								res.addAll(resSub.list);
+							}
+						}
+					}
+				}
+				
+				return res; 
+				
+			}
+			
+			
+			/**
+			 *获取导航树 
+			 */
+			
+			private function getTree(actStr:String):ArrayCollection{
+				
+				var re:ArrayCollection = new ArrayCollection;
+				//========权限到装置使用
+				/* var orgList:Array = GlobalModel.getInstance().getOrganizationList(); */
+				
+				//========权限到机组时使用
+				  var treeRe:ArrayCollection =  GlobalModel.getInstance().cloneTree(true);
+				var orgList:Array = formatArrayCollection2Array(treeRe); 
+				 
+				
+				if(modifyItem != null && orgList && orgList.length > 0){
+//					var actStr:String =  modifyItem.actions;
+					
+					var orgObjectList:Array = [];
+					
+					//临时存储到字典中
+					var orgMap:Dictionary = new Dictionary(true);
+					//========权限到装置使用
+					/*   for each(var orgItem:Organization in orgList){
+						var orgObj:Object = new Object();
+						orgObj.label = orgItem.name;
+						orgObj.id = orgItem.id;
+						orgObj.parentId = orgItem.parentid;
+						orgObj.containState = 0;
+						orgMap[orgObj.id] = orgObj;
+						orgObjectList.push(orgObj);
+					} */  
+					//========权限到机组时使用
+					   for each(var orgItem:TreeItem in orgList){
+						var orgObj:Object = new Object();
+						orgObj.label = orgItem.label;
+						orgObj.id = orgItem.id;
+						orgObj.parentId = orgItem.parent?orgItem.parent.id:"";
+						orgObj.containState = 0;
+						orgMap[orgObj.id] = orgObj;
+						orgObjectList.push(orgObj);
+					}   
+					
+					for each(var mainObj:Object in orgObjectList){
+						createParentTree(mainObj  , re , orgMap , actStr);
+					}
+					
+					
+					for each(var reObj:Object in re){
+						OrganizationUtil.checkTreeStatus(reObj);
+					} 
+				}
+				return re;
+			}
+			
+		/* 	private function getActionMachines(actions:String):String{
+				var rStr:String ="";
+				
+				if(actions == "-1" || actions ==""){
+					rStr = actions;
+				}else{
+					
+				}
+				
+				
+				return rStr;
+			} */
+			
+			
+			  private var treeArray:Array ;
+			private function formatArrayCollection2Array(ac:ArrayCollection):Array{
+				treeArray = [];
+				treeArray = treeArray.concat(ac.source);
+				for (var i:int = 0; i < ac.length; i++) 
+				{
+					forEachChild(ac.getItemAt(i));
+				}
+				
+				return treeArray;
+			}
+			
+			private function forEachChild(obj:Object):void{
+				var objsub:ArrayCollection = obj.children;
+				if(objsub && objsub.length > 0){
+					treeArray = treeArray.concat(objsub.source);
+					for each(var obj2:Object in objsub){ 
+						forEachChild(obj2);
+					}
+				} 
+				
+			}  
+			
+			var pobj:Object = {};
+			private function createParentTree(obj:Object ,result:ArrayCollection , orgMap:Dictionary , actions:String ):void{
+				if(actions && ( actions.indexOf("|"+ obj.id +"|") >= 0  || actions == "-1")){
+					obj.containState = 1;
+				}
+				if(obj.parentId  && orgMap[obj.parentId]  ){
+					var pobj:Object = orgMap[obj.parentId];
+					var pch:ArrayCollection = pobj.children;
+					if(!pch){
+						pch = new ArrayCollection;
+						pobj.children = pch;
+					}
+					pch.addItem(obj);
+					if(!pobj.isCreate)
+						createParentTree(pobj , result , orgMap , actions);
+				}else{
+					if(result.getItemIndex(obj) < 0 ){
+						result.addItem(obj);
+					}
+				}
+				
+				obj.isCreate = true;
+			}
+			
+			private function createSubTree(obj:Object):void{
+				var selectCount:int = 0;
+				var halfSelectCount:int = 0;
+				var objsub:ArrayCollection = obj.children;
+				if(objsub && objsub.length > 0){
+					for each(var obj2:Object in objsub){
+						obj2.containState = 1;
+						createSubTree(obj2);
+					}
+				} 
+			}
+			
+			
+			override protected function commitProperties():void
+			{
+				super.commitProperties();
+				btn_apply.enabled=editable;
+				btn_apply.visible = editable;
+				btn_save.visible = editable;
+				btn_save.enabled=editable;
+			}
+			//权限列表
+			[Bindable]
+			private var authDataProvider:ArrayCollection;
+			
+			/**
+			 * 是否可以编辑
+			 */
+			public function set editable(value:Boolean):void
+			{
+				_editable=value;	
+			}
+			
+			public function get editable():Boolean
+			{
+				return _editable;
+			}
+			
+			private var timeOut:int;
+			private var _editable:Boolean=true;
+		]]>
+	</fx:Script>
+	
+	<mx:Form width="100%" height="100%">
+		<!--用户名-->
+		<mx:FormItem label="{SgResourceManager.getSetString('SET_AUTH_009')}" width="100%" >
+			<controls4:TextInput id="tiName" width="100%"   editable="false"  />
+		</mx:FormItem>
+		<!--组织结构权限-->
+		<mx:FormItem label="{SgResourceManager.getSetString('UPGRD_003')}" width="100%" height="100%">
+			<!--<controls1:DoubleCheckTree id="authTree" width="100%" height="100%" enabledCheckBox="{isEdit}" labelField="label"
+			dataProvider="{authDataProvider}" checkBoxStateField="containState" displayTypeField="type"/>-->
+			<controls2:AuthCheckTree id="authTree" width="100%" height="100%" labelField="label" dataProvider="{authDataProvider}" checkBoxEnableState="true"
+									 checkBoxStateField="containState" checkBoxCloseItemsOnUnCheck="false" openDuration="80"/>
+		</mx:FormItem>
+	</mx:Form>
+</views1:GrEdit>

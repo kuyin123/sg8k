@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:HBox xmlns:fx="http://ns.adobe.com/mxml/2009"
+		 xmlns:s="library://ns.adobe.com/flex/spark"
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 width="100%" height="32" borderVisible="false">
+	
+	<fx:Metadata>
+		[Event(name="removeItemClick",type="com.grusen.autoexportreport.event.ListClickEvent")]
+	</fx:Metadata>
+	<fx:Script>
+		<![CDATA[
+			import com.grusen.autoexportreport.event.ListClickEvent;
+			import com.grusen.constants.NodeTypeConst;
+			import com.grusen.constants.RMachineStatusConst;
+			
+			import mx.controls.Alert;
+			[Bindable] 
+			[Embed(source="assets/success.png")] 
+			public var success:Class; 
+			[Bindable] 
+			[Embed(source="assets/fail.png")] 
+			public var fail:Class; 
+			[Bindable] 
+			[Embed(source="assets/wait.png")] 
+			public var wait:Class; 
+			[Bindable] 
+			[Embed(source="assets/loading.swf")] 
+			public var being:Class; 
+			[Bindable]
+			[Embed(source="assets/del.png")] 
+			public var del:Class; 
+			
+			protected function getColor(data:Object):uint
+			{
+				var lindex:int= Number(data.type.toString());
+				if(lindex == NodeTypeConst.ORGANIZATION_FACTORY){
+					return 0xf5f6f6;
+				}else{
+					return 0xffffff;
+				}
+			}
+			
+			protected function getIcon(data:Object):Class
+			{
+				var status:int= Number(data.status.toString());
+				if(status == RMachineStatusConst.MACHINE_WAITING){
+					return wait;
+				}else if(status == RMachineStatusConst.MACHINE_SUCCESS){
+					return success;
+				}else if(status == RMachineStatusConst.MACHINE_FAIL){
+					return fail;
+				}else  if(status == RMachineStatusConst.MACHINE_DOING){
+					return being;
+				}else{
+					return null;
+				}
+			}
+			
+			protected function remove(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				if(this.owner.mouseEnabled){
+					var listclickevent:ListClickEvent=new ListClickEvent("removeItemClick",data);
+					dispatchEvent(listclickevent);
+				}else{
+					Alert.show("请先暂停生成。");
+				}
+			}
+			
+			protected function getLabel(data:Object):String
+			{
+				if(data.equipmentName)
+					return Number(data.type.toString()) == NodeTypeConst.ORGANIZATION_FACTORY ? data.name : data.name+'('+data.equipmentName+')';
+				else
+					return Number(data.type.toString()) == NodeTypeConst.ORGANIZATION_FACTORY ? data.name : data.name;
+			}
+		]]>
+	</fx:Script>
+	<s:HGroup left="10" right="10" width="100%" height="100%" gap="10" paddingLeft="10"
+			  paddingRight="10" verticalAlign="middle" verticalCenter="0"  toolTip="{data.tips}">
+		
+		<s:SWFLoader  visible="{Number(data.type.toString()) != NodeTypeConst.ORGANIZATION_FACTORY ? true:false}" width="16"
+					  height="16" includeInLayout="{Number(data.type.toString()) != NodeTypeConst.ORGANIZATION_FACTORY ? true:false}"
+					  source="{getIcon(data)}" />
+		
+		<s:Label text="{getLabel(data)}"  fontWeight="{Number(data.type.toString()) == NodeTypeConst.ORGANIZATION_FACTORY ?'bold':'normal'}"  width="100%"/>
+		
+		<s:Image  width="16" height="16"  scaleMode="zoom" smooth="true" smoothingQuality="high" source="{del}" buttonMode="true" useHandCursor="true" mouseChildren="false"  toolTip="移除" click="remove(event)" />
+	</s:HGroup>
+		
+</mx:HBox>

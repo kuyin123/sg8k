@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<controls:DataGrid xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				   xmlns:s="library://ns.adobe.com/flex/spark" 
+				   xmlns:mx="library://ns.adobe.com/flex/mx" xmlns:controls="ppf.tool.components.mx.components.controls.*" 
+				   xmlns:dataGridClasses="ppf.tool.components.mx.components.controls.dataGridClasses.*" width="375" height="330"  >
+	<fx:Script>
+		<![CDATA[
+			import com.grusen.constants.AuthValueConst;
+			import com.grusen.constants.LocaleExtendConst;
+			import com.grusen.interfaces.IMachine;
+			import com.grusen.interfaces.IOrganization;
+			import com.grusen.managers.SgResourceManager;
+			import com.grusen.model.GlobalModel;
+			import com.grusen.model.vo.Machine;
+			import com.grusen.model.vo.User;
+			import com.grusen.utils.OrganizationUtil;
+			
+			import flash.utils.setTimeout;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.dataGridClasses.DataGridColumn;
+			
+			import ppf.base.math.Array2;
+			import ppf.tool.auth.AuthConst;
+			import ppf.tool.auth.AuthUtil;
+			import ppf.tool.components.mx.components.controls.LinkButton;
+			
+			protected function opFunction(item:Object,btnArr:Array):void
+			{
+   				for each (var btn:LinkButton in btnArr)
+				{
+  					AuthUtil.opItemAuthFunction(item,btn);
+ 				}
+			}
+			
+			/*private function showPosOrMac(item:Object, column:DataGridColumn):String{
+				
+				var orgid:String = String( item["orgidList"] );
+				
+				var org:IOrganization;
+				
+				if( item["ruleType"] == 0){
+					org =  GlobalModel.getInstance().getMachineById(orgid);
+ 				}else{
+					org = GlobalModel.getInstance().getPosById(orgid);
+				}
+				
+				if(!org){
+					var macid:String = orgid;
+					if(item["ruleType"] == 1){
+						macid = macid.substr(0 , macid.length - 4);
+					}
+					GlobalModel.getInstance().requestMachine(macid , true);
+					var da:ArrayCollection = this.dataProvider as ArrayCollection;
+					if(da){
+						setTimeout( da.refresh  ,  1500);
+					}
+				}
+				
+				var path:String = OrganizationUtil.getOrgnazaitonPath(org);
+				return (path? path : "" );
+			}*/
+			
+			private function showPlatform(item:Object, column:DataGridColumn):String{	
+				var pint:int = int(item["platform"]);
+ 				return (pint == 0)? "短信" : "APP";
+ 			}
+			
+			private function showEventName(item:Object, column:DataGridColumn):String{
+				var pint:int = int(item["filterType"]);
+				
+				switch(pint){
+					case 3:
+						return SgResourceManager.getSystemString("SYSTEM_ALARM_009");
+					case 5:
+						return SgResourceManager.getSystemString("SYSTEM_ALARM_008");
+					case 6:
+						return SgResourceManager.getSystemString("SYSTEM_ALARM_011");
+					case 100:
+						return SgResourceManager.getSystemString("SYSTEM_TPVALUE_033");
+					case 101:
+						return SgResourceManager.getSystemString("SYSTEM_TPVALUE_032");
+					case 102:
+						return SgResourceManager.getSystemString("SYSTEM_TPVALUE_030");
+					case 103:
+						return SgResourceManager.getSystemString("SYSTEM_TPVALUE_029");
+					case 104:
+						return SgResourceManager.getSystemString("SYSTEM_TPVALUE_028");
+					case 105:
+						return SgResourceManager.getSystemString("SYSTEM_TPVALUE_031");
+					default:
+						return "";
+						
+				}
+ 		 	
+			}
+			
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- 将非可视元素（例如服务、值对象）放在此处 -->
+	</fx:Declarations>
+	<controls:columns>
+		<!--机组或测点-->
+		<dataGridClasses:DataGridColumnLabel headerText="{SgResourceManager.getSetString('SET_AUTH_055')}" wordWrap="true"  width="250" minWidth="150" dataField="ruleName"/>
+		<!--适用终端-->
+		<dataGridClasses:DataGridColumnLabel headerText="{SgResourceManager.getSetString('SET_AUTH_056')}" width="60" minWidth="60"  labelFunction="showPlatform"/>
+		<!--屏蔽事件-->
+		<dataGridClasses:DataGridColumnLabel headerText="{SgResourceManager.getSetString('SET_AUTH_057')}" width="80" minWidth="60"   labelFunction="showEventName"/>
+		<dataGridClasses:DataGridColumnCommonOp dataProvider="{opDataProvider}" opFunction="{opFunction}" width="100"
+												headerText="{SgResourceManager.getString(LocaleExtendConst.PUBLIC,'PUBLIC_OP_014')}"/>
+	</controls:columns>
+</controls:DataGrid>

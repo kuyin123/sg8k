@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<controls2:DataGrid xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			 xmlns:s="library://ns.adobe.com/flex/spark" 
+			 xmlns:mx="library://ns.adobe.com/flex/mx" 
+			 xmlns:controls="ppf.tool.components.mx.components.controls.*"
+			 xmlns:datagridClasses="ppf.tool.components.mx.components.controls.dataGridClasses.*" xmlns:controls1="ppf.tool.components.mx.components.controls.*" xmlns:controls2="ppf.tool.components.mx.components.controls.*" xmlns:dataGridClasses="ppf.tool.components.mx.components.controls.dataGridClasses.*">
+	<fx:Script>
+		<![CDATA[
+			import com.grusen.constants.LocaleExtendConst;
+			import com.grusen.managers.SgResourceManager;
+			import com.grusen.model.GlobalModel;
+			
+			import ppf.tool.auth.AuthConst;
+			import ppf.tool.auth.AuthUtil;
+			import ppf.tool.components.mx.components.controls.LinkButton;
+			protected function opFunction(item:Object,btnArr:Array):void
+			{
+				for each (var btn:LinkButton in btnArr)
+				{
+					AuthUtil.opItemAuthFunction(item,btn);
+					
+					//删除角色
+					if (btn.toolTip == SgResourceManager.getSetString('SET_AUTH_008') && item.id == GlobalModel.getInstance().authDao.currUser.roleId)
+					{
+						btn.includeInLayout = false;
+						btn.visible = false;
+					}
+					else
+					{
+						btn.includeInLayout = true;
+						btn.visible = true;
+					}
+				}
+			}
+		]]>
+	</fx:Script>
+	<controls:columns>
+		<!--角色名称-->
+		<dataGridClasses:DataGridColumnLabel headerText="{SgResourceManager.getSetString('SET_AUTH_001')}" dataField="name"
+											 width="100" minWidth="60"/>
+		<!--角色级别-->
+		<dataGridClasses:DataGridColumnLabel headerText="{SgResourceManager.getSetString('SET_AUTH_002')}" dataField="roleLevel"
+											 width="100" minWidth="60"/>
+		<dataGridClasses:DataGridColumnLabel headerText="ID" dataField="id" visible="{AuthConst.isSuperAdmin}"
+											 width="60" minWidth="60"/>
+		<dataGridClasses:DataGridColumnCommonOp dataProvider="{opDataProvider}" opFunction="{opFunction}"
+									  headerText="{SgResourceManager.getString(LocaleExtendConst.PUBLIC,'PUBLIC_OP_014')}"/>
+	</controls:columns>
+</controls2:DataGrid>

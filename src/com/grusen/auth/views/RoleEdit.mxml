@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8"?>
+<views1:GrEdit xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			  xmlns:s="library://ns.adobe.com/flex/spark" 
+			  xmlns:mx="library://ns.adobe.com/flex/mx" 
+			  xmlns:views="com.sg.components.views.*" 
+			  xmlns:Layouts="com.grusen.spark.Layouts.*" 
+			  xmlns:controls="com.grusen.spark.components.controls.*"
+			  xmlns:controls1="com.grusen.mx.components.controls.*"
+			  width="500" height="400" xmlns:containers="com.grusen.spark.components.containers.*" xmlns:controls2="com.grusen.components.controls.*" xmlns:controls3="com.sg.components.spark.components.controls.*" xmlns:controls4="ppf.tool.components.spark.components.controls.*" xmlns:views1="ppf.tool.components.views.*">
+	<fx:Declarations>
+		<!-- 将非可视元素（例如服务、值对象）放在此处 -->
+		<!--角色不能为空-->
+		<mx:StringValidator id="v_name" 
+							source="{tiName}" 
+							requiredFieldError="{SgResourceManager.getTipString('TIP_AUTH_009')}"
+							property="text" 
+							minLength="{tiName.minChars}"
+							maxLength="100"/> 
+		<!--等级必须在0-20之间-->
+		<mx:NumberValidator id="v_level"
+							source="{tiLevel}" 
+							requiredFieldError="{SgResourceManager.getTipString('TIP_AUTH_010')}"
+							property="text" 
+							maxValue="20"
+							minValue="0"
+							precision="0"/> 
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import com.grusen.constants.AuthValueConst;
+			import com.grusen.events.ModelEvent;
+			import com.grusen.managers.SgResourceManager;
+			import com.grusen.model.GlobalModel;
+			import com.grusen.model.XmlDao;
+			import com.grusen.model.vo.Role;
+			import com.grusen.services.ServiceConst;
+			
+			import flash.utils.clearTimeout;
+			import flash.utils.setTimeout;
+			
+			import mx.collections.ArrayCollection;
+			import mx.collections.XMLListCollection;
+			import mx.events.FlexEvent;
+			import mx.rpc.events.ResultEvent;
+			
+			import ppf.tool.auth.AuthConst;
+			import ppf.tool.auth.AuthUtil;
+			import ppf.tool.components.ValidUtil;
+			import ppf.tool.rpc.managers.RPCManager;
+			import ppf.tool.text.RestrictUtil;
+			
+			override public function onInit(event:Event=null):void
+			{ 
+				if (null!= modifyItem) //修改角色时
+					authDataProvider = GlobalModel.getInstance().authDao.getAuthList(modifyItem.valueList.source);
+				else                 //添加新角色时
+					authDataProvider = GlobalModel.getInstance().authDao.getAuthList();//添加角色
+				setTimeout(treeExpandAll,80);
+			}
+			
+			override public function onModifyItem(item:Object):void
+			{
+				super.onModifyItem(item);
+				tiName.text = item.name;
+				tiLevel.text=item.roleLevel.toString();
+				//TODO delete the after code then debug compelete
+//				var  valuelist:Array =(String( modifyItem.xmlConfig)).split("#");
+//				modifyItem.valueList = valuelist;
+				
+				if(null==modifyItem.valueList)
+					return;
+				authDataProvider = GlobalModel.getInstance().authDao.getAuthList(modifyItem.valueList.source);
+				setTimeout(treeExpandAll,80);
+			}
+			
+			override protected function resume():void
+			{
+				super.resume();
+				tiName.text = "";
+				tiLevel.text="";
+			}
+			
+			override protected function onApply(event:MouseEvent,isSubmit:Boolean=true):Boolean
+			{
+				if (super.onApply(event,isSubmit))
+				{
+					var role:Role = new Role;
+					role.name = tiName.text;
+					role.roleLevel=int(tiLevel.text);
+					if (!isAdd && null != modifyItem)
+						role.id = modifyItem.id;
+					else
+						role.id = 0;
+					role.valueList=new ArrayCollection(getAuthID(authDataProvider));
+					RPCManager.call(ServiceConst.DS_MAINHANDLER,"UpdateRole",role);
+				}
+				return true;
+			}
+			override protected function onResult(event:ResultEvent):void
+			{
+				super.onResult(event);
+				GlobalModel.getInstance().authDao.reLoadRole();
+			}
+			
+			override protected function regValidators():void
+			{
+				ValidUtil.registerValidatorsOnPopUp(this,[v_name,v_level]);
+			}
+			
+			override protected function doValid():Boolean
+			{
+				var isValidForm:Boolean;
+				isValidForm =ValidUtil.validForm(this,false,v_name)&&ValidUtil.validForm(this,false,v_level);
+				return isValidForm;
+			}
+			
+			/**
+			 * 检测界面的权限状态 
+			 */	
+			override protected function checkAuth():void
+			{
+				if(isAdd) //添加
+					isEdit=AuthUtil.checkAuth(AuthValueConst.ROLE_ADD);
+				else //编辑
+					isEdit=AuthUtil.checkAuth(AuthValueConst.ROLE_EDIT);
+				auth_btnApply = isEdit;
+			}
+			
+			private function treeExpandAll():void
+			{
+				clearTimeout(timeOut);
+				authTree.expandAll(true);
+			}
+			
+			/**
+			 * 获取权限选中的id列表
+			 * @param arr 权限的数据数组
+			 */	
+			public static  function getAuthID(arr:ArrayCollection):Array
+			{
+				//分为三层：大模块，具体模块，具体权限
+				//对应的编码：xx  ,xx       ,xx
+				//总的编码：xxxxxx  ,其中x表示0-9的数字
+				var tmpArr:Array = [];
+				var sub:Object;
+				var subSub:Object;
+				for each (var item:Object in arr)
+				{
+					if(item.containState==1||item.containState==2)  //如果选中，或者部分选中，就添加，否则不添加
+					{
+						for each(sub in item.children)
+						{
+							if(sub.containState==1||sub.containState==2)
+							{
+								for each(subSub in sub.children)
+								{
+									if(subSub.containState==1)  //如果选中了，就添加
+									{	
+										tmpArr.push(int(subSub.actionID));
+										if(subSub.actionID == 60301) // 记录是否有调试信息权限
+											AuthConst.isDebug = true ;
+									}
+								}
+							}
+						}
+					}
+				}
+				
+//				if ((item.type == "0" && item.containState == 0) || 
+//					(item.type == "1" && item.containState == 1))
+//				{
+//					//						tmpArr.push(int(item.id_0));
+//					tmpArr.push(int(item.actionId_0));
+//				}
+//				else if (item.type == "2")
+//				{
+//					if (item.containState == 0)
+//					{
+//						//							if (item.hasOwnProperty("id_0"))
+//						//								tmpArr.push(int(item.id_0));
+//						if (item.hasOwnProperty("actionId_0"))
+//							tmpArr.push(int(item.actionId_0));
+//					}
+//					else if (item.containState == 1)
+//					{
+//						//							if (item.hasOwnProperty("id_0"))
+//						//								tmpArr.push(int(item.id_0));
+//						//							if (item.hasOwnProperty("id_1"))
+//						//								tmpArr.push(int(item.id_1));
+//						if (item.hasOwnProperty("actionId_0"))
+//							tmpArr.push(int(item.actionId_0));
+//						if (item.hasOwnProperty("actionId_1"))
+//							tmpArr.push(int(item.actionId_1));
+//					}
+//				}
+//				if (null != item.children)
+//					tmpArr= tmpArr.concat(getAuthID(item.children));
+				return tmpArr;
+			}
+			
+			override protected function commitProperties():void
+			{
+				super.commitProperties();
+//				tiName.enabled=editable;
+//				tiLevel.enabled=editable;
+//				authTree.enabled=editable;
+				btn_apply.enabled=editable;
+				btn_apply.visible = editable;
+				btn_save.visible = editable;
+				btn_save.enabled=editable;
+			}
+			//权限列表
+			[Bindable]
+			private var authDataProvider:ArrayCollection;
+			
+			/**
+			 * 是否可以编辑
+			 */
+			public function set editable(value:Boolean):void
+			{
+				_editable=value;	
+			}
+			
+			public function get editable():Boolean
+			{
+				return _editable;
+			}
+			
+			private var timeOut:int;
+			private var _editable:Boolean=true;
+		]]>
+	</fx:Script>
+	
+	<mx:Form width="100%" height="100%">
+		<!--角色名称-->
+		<mx:FormItem label="{SgResourceManager.getSetString('SET_AUTH_001')}" width="100%" required="true">
+			<controls4:TextInput id="tiName" width="100%" maxChars="25" editable="{isEdit}" restrict="{RestrictUtil.FILENAME_REG}"/>
+		</mx:FormItem>
+		<!--角色等级-->
+		<mx:FormItem label="{SgResourceManager.getSetString('SET_AUTH_003')}" width="100%" required="true">
+			<controls4:TextInput id="tiLevel" width="100%" maxChars="25" editable="{isEdit}" restrict="{RestrictUtil.INT_REG}"
+								minNum="0"/>
+		</mx:FormItem>
+		<!--权限列表-->
+		<mx:FormItem label="{SgResourceManager.getSetString('SET_AUTH_004')}" width="100%" height="100%">
+			<!--<controls1:DoubleCheckTree id="authTree" width="100%" height="100%" enabledCheckBox="{isEdit}" labelField="label"
+									   dataProvider="{authDataProvider}" checkBoxStateField="containState" displayTypeField="type"/>-->
+			<controls2:AuthCheckTree id="authTree" width="100%" height="100%" labelField="label" dataProvider="{authDataProvider}"
+									 checkBoxStateField="containState" checkBoxCloseItemsOnUnCheck="false" openDuration="80"/>
+		</mx:FormItem>
+	</mx:Form>
+</views1:GrEdit>

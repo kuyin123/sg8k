@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<controls2:DataGrid xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			 xmlns:s="library://ns.adobe.com/flex/spark" 
+			 xmlns:mx="library://ns.adobe.com/flex/mx" 
+			 xmlns:controls="ppf.tool.components.mx.components.controls.*"
+			 xmlns:datagridClasses="ppf.tool.components.mx.components.controls.dataGridClasses.*" 
+			 xmlns:controls2="ppf.tool.components.mx.components.controls.*" 
+			 xmlns:dataGridClasses="ppf.tool.components.mx.components.controls.dataGridClasses.*">
+	<fx:Script>
+		<![CDATA[
+			import com.grusen.constants.LocaleExtendConst;
+			import com.grusen.managers.SgResourceManager;
+			
+			import ppf.tool.auth.AuthConst;
+			import ppf.tool.auth.AuthUtil;
+		]]>
+	</fx:Script>
+	<controls:columns>
+		<dataGridClasses:DataGridColumnLabel headerText="ID" dataField="id" visible="{AuthConst.isSuperAdmin}"/>
+		<!--权限名称-->
+		<dataGridClasses:DataGridColumnLabel headerText="{SgResourceManager.getSetString('SET_AUTH_041')}" dataField="name"/>
+		<!--权限值-->
+		<dataGridClasses:DataGridColumnLabel headerText="{SgResourceManager.getSetString('SET_AUTH_042')}" dataField="value"/>
+		<dataGridClasses:DataGridColumnCommonOp dataProvider="{opDataProvider}" opFunction="{AuthUtil.opAuthFunction}"
+									  headerText="{SgResourceManager.getString(LocaleExtendConst.PUBLIC,'PUBLIC_OP_014')}"/>
+	</controls:columns>
+</controls2:DataGrid>

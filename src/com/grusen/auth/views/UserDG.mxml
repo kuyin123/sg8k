@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<controls2:DataGrid xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			 xmlns:s="library://ns.adobe.com/flex/spark" 
+			 xmlns:mx="library://ns.adobe.com/flex/mx" 
+			 xmlns:controls="ppf.tool.components.mx.components.controls.*"
+			 xmlns:datagridClasses="ppf.tool.components.mx.components.controls.dataGridClasses.*" 
+			 xmlns:controls1="ppf.tool.components.mx.components.controls.*" 
+			 xmlns:controls2="ppf.tool.components.mx.components.controls.*" 
+			 xmlns:dataGridClasses="ppf.tool.components.mx.components.controls.dataGridClasses.*">
+	<fx:Script>
+		<![CDATA[
+			import com.grusen.constants.AuthValueConst;
+			import com.grusen.constants.LocaleExtendConst;
+			import com.grusen.interfaces.IOrganization;
+			import com.grusen.managers.SgResourceManager;
+			import com.grusen.model.GlobalModel;
+			import com.grusen.model.vo.User;
+			
+			import mx.controls.dataGridClasses.DataGridColumn;
+			
+			import ppf.tool.auth.AuthConst;
+			import ppf.tool.auth.AuthUtil;
+			import ppf.tool.components.mx.components.controls.LinkButton;
+			import ppf.tool.math.DateUtil;
+			private var suibian:PasswordModify = new PasswordModify;
+			protected function opFunction(item:Object,btnArr:Array):void
+			{
+				var curUser:User = GlobalModel.getInstance().authDao.currUser;
+				var user:User = item as User;
+				for each (var btn:LinkButton in btnArr)
+				{
+					
+					//可以自己修改自己的相关信息,但有效期及级别角色不能修改
+					if(curUser.id  ==  user.id){
+						btn.visible = true;
+						btn.includeInLayout = true;
+						//return; //这里还要检查修改后是否会有问题
+					}
+ 					
+					AuthUtil.opItemAuthFunction(item,btn);
+					//如果用户的角色级别大小于登录用户的权限级别，则不能删除，修改。但用户可以修改自己,但不可以删除自己
+					//roleLevet值越小，权限级别越大
+					if(curUser.roleLevel < user.roleLevel  || curUser.roleId == AuthConst.ENG_DEBUG ||  curUser.roleId == AuthConst.ENG_MAINTAIN)  //登录用户级别 >用户级别
+					{
+						//btn.enabled = true;
+						btn.visible = true;
+						btn.includeInLayout = true;
+					}
+					else
+					{
+						//登录用户级别  <= 用户级别
+						if(btn.actionID == AuthValueConst.USER_DEL || btn.actionID == AuthValueConst.USER_ORG_EDIT)  //禁用删除按钮
+						{
+							btn.visible = false;
+							btn.includeInLayout = false;
+							btn.enabled = false;
+						}else{
+							//编辑按钮可见
+							btn.visible = true;
+							btn.includeInLayout = true;
+							btn.enabled = curUser.id == user.id;  //登录用户可以 修改自己 
+						}
+					}
+					
+					//如果是超级管理员也不允许修改组织权限，因为超级管理员登录后获取不到组织结构；只允许管理员、工程维护、工程服务人员
+					if( btn.actionID == AuthValueConst.USER_ORG_EDIT  &&   (AuthConst.isSuperAdmin || (!AuthConst.isAdmin && curUser.roleId != AuthConst.ENG_DEBUG && curUser.roleId != AuthConst.ENG_MAINTAIN ) ) ){
+						//超级管理员、以及非admin角色用户都不能进行组织结构权限设置
+						btn.visible = false;
+						btn.includeInLayout = false;
+						btn.enabled = false;
+					}
+				}
+			}
+			
+			private function myLabelFunc(item:Object, column:DataGridColumn):String
+			{
+				if(item==null||!item.hasOwnProperty(column.dataField)||item[column.dataField]==null)
+					return "-";
+				var cell:Object=item[column.dataField];
+				if(cell is Date)
+					return DateUtil.formatDateEx(cell as Date);
+				return cell.toString();
+			}
+			
+			private function myTipLabelFunc(datas:Object):String
+			{
+				if(!datas["loginTime"])
+					return "";
+				var dt:Date  =  datas["loginTime"] as Date;
+   				if(dt )
+					return DateUtil.formatDateEx(dt as Date);
+				return datas["loginTime"].toString();
+			}
+			
+			private function showCompanyName(item:Object, column:DataGridColumn):String{
+				if(AuthConst.isSuperAdmin)
+					return "";
+				if(!item["company"]  || item["company"] == "")
+					return "";
+				
+				if(!isNaN( Number(item["company"]) )){
+					var org:IOrganization = GlobalModel.getInstance().getOrganizationById(item["company"]);
+					if(org){
+						return org.name;
+					}
+					return "";
+				}else{
+					return  item["company"] ;
+				}
+					
+ 			}
+
+		]]>
+	</fx:Script>
+	<controls:columns>
+		<!--用户名-->
+		<dataGridClasses:DataGridColumnLabel headerText="{SgResourceManager.getSetString('SET_AUTH_009')}" width="60" minWidth="60" dataField="name"/>
+		<dataGridClasses:DataGridColumnLabel headerText="ID" dataField="id" width="60" minWidth="60" visible="{AuthConst.isSuperAdmin}"/>
+		<!--姓名-->
+		<dataGridClasses:DataGridColumnLabel headerText="{SgResourceManager.getSetString('SET_AUTH_016')}" width="60" minWidth="60" dataField="username"/>
+		<!--所属角色-->
+		<dataGridClasses:DataGridColumnLabel headerText="{SgResourceManager.getSetString('SET_AUTH_010')}" width="80" minWidth="60" dataField="roleName"/>
+		<!--单位-->
+		<dataGridClasses:DataGridColumnLabel headerText="{SgResourceManager.getSetString('SET_AUTH_047')}" width="110" minWidth="80" labelFunction="showCompanyName" visible="{!AuthConst.isSuperAdmin}"/>
+		<!--当月登录次数-->
+		<dataGridClasses:DataGridColumnLabel headerText="{SgResourceManager.getSetString('SET_AUTH_045')}" width="90" minWidth="60" dataField="monthLogin"/>
+		<!--累积登录次数-->
+		<dataGridClasses:DataGridColumnLabel headerText="{SgResourceManager.getSetString('SET_AUTH_046')}" width="90" minWidth="60" dataField="totalLogin"/>
+		<!--最后登录时间-->
+		<!--dataGridClasses:DataGridColumnLabel headerText="{SgResourceManager.getSetString('SET_AUTH_011')}"  dataTipFunction="myTipLabelFunc" dataField="loginTime" width="125" minWidth="60" labelFunction="myLabelFunc"/-->
+		<dataGridClasses:DataGridColumnCommonOp dataProvider="{opDataProvider}" opFunction="{opFunction}"
+									  headerText="{SgResourceManager.getString(LocaleExtendConst.PUBLIC,'PUBLIC_OP_014')}"/>
+	</controls:columns>
+</controls2:DataGrid>

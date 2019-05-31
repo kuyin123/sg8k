@@ -1,0 +1,175 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!-- saved from url=(0014)about:internet -->
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"> 
+    <head>
+        <title>欢迎访问大型旋转机械在线状态监测及分析系统 - 沈鼓测控</title>
+        <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico"/>
+		<link rel="Bookmark" href="favicon.ico"/>
+        <meta name="google" value="notranslate"/>    
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <style type="text/css" media="screen"> 
+            html, body  { height:100%; }
+            body { margin:0; padding:0; overflow:auto; text-align:center; 
+                   background-color: ${bgcolor}; }   
+            object:focus { outline:none; }
+            #flashContent { display:none; }
+        </style>
+        <script language="JavaScript" type="text/javascript">
+			function changeTitle(title){
+			   document.title = title;
+			}
+		</script>
+
+        <script type="text/javascript" src="js/jquery.js"></script>
+        <script type="text/javascript" src="js/UUID.js"></script>
+        <script type="text/javascript" src="js/BASE64.js"></script>
+        
+        <script type="text/javascript" src="swfobject.js"></script>
+        <script type="text/javascript" src="util.js"></script>
+         
+        <script type="text/javascript" src="js/oauth2-sdk.js"></script>
+        
+        <script type="text/javascript">
+	        //onerror = errorHandler;
+		    //function errorHandler(msg,url,l)
+		   // {
+		     //	var txt = "出现错误"+"\n";
+		     //	txt +="当前浏览器："+navigator.appName+"\n";
+		     //	txt +="消息："+msg+"\n\n";
+		     //	txt +="连接："+url+"\n";
+	    	 //txt +="所在的行："+l+"\n";
+	    	 //alert(txt);
+		   // }
+    
+            var utilObj = new util();
+   			var versionNum = utilObj.getversion("xml/version.xml"); //获取版本号
+   			
+            var swfVersionStr = "10.2.0";
+            var xiSwfUrlStr = "${expressInstallSwf}";
+            var flashvars = {};
+            var params = {};
+            
+            var authUserInfo = "";
+            
+            
+            params.quality = "high";
+            params.bgcolor = "${bgcolor}";
+            params.allowscriptaccess = "sameDomain";
+            params.allowfullscreen = "true";
+            params.wmode = "opaque";
+            <!-- 注意：屏蔽系统右键必须添加此属性 -->
+            var attributes = {};
+            attributes.id = "${application}";
+            attributes.name = "${application}";
+            attributes.align = "middle";
+            
+            swfobject.embedSWF(
+                "${swf}.swf"+"?"+versionNum, "flashContent", 
+                "${width}", "${height}", 
+                swfVersionStr, xiSwfUrlStr, 
+                flashvars, params, attributes);
+            swfobject.createCSS("#flashContent", "display:block;text-align:left;");
+            
+            
+            $(function getAuthUserInfo(sid){
+            
+      
+              var sidStr = null;
+                
+              sidStr = SGCK_GET_COOKIES_BY_NAME('sgSid');
+                
+              if(IS_DEBUG){
+                $.ajax({
+                   type:'post',
+                   url: 'http://10.0.99.52/authserver/userinfoForProduct?' +  (new UUID()).createUUID(),
+                   dataType: "json",
+                   data:{
+                      sid : sidStr,
+                      username : DEBUG_NAME
+                   },
+                   success: function(data){
+                      if(data){
+                      authUserInfo = JSON.stringify(data);
+                      }
+                      
+                   },
+                   error: function(){
+                      authUserInfo = null;
+                   }
+                });
+                return;
+                }
+                
+                
+
+                
+                if(null == sidStr || sidStr.length == 0){
+                    //alert("无法获取用户登录信息sid...");
+                    return;
+                }
+            
+                $.ajax({
+                   type:'post',
+                   url: '../authserver/userinfo?' +  (new UUID()).createUUID(),
+                   //dataType: "json",
+                   data:{
+                      sid : sidStr
+                   },
+                   success: function(data){
+                      authUserInfo = data;
+                   },
+                   error: function(){
+                      authUserInfo = null;
+                   }
+                })
+            })
+            
+            function getUserInfo(){
+               return authUserInfo;
+            }
+            
+           
+             
+            
+        </script>
+    </head>
+    <body>
+        <div id="flashContent">
+            <p>
+				为了正常使用功能，请您下载最新的Flash插件。
+            </p>
+            <script type="text/javascript"> 
+				document.write("<li><a href='install_flash_player_ax.exe' target='_blank'>点击从服务器下载Flash插件(IE浏览器)</a></li><li><a href='install_flash_player.exe' target='_blank'>点击从服务器下载Flash插件(其它浏览器)</a></li><li><a href='http://get.adobe.com/cn/flashplayer/' target='_blank'>点击从官网下载最新的Flash插件</a></li>" ); 
+			</script> 
+        </div>
+        
+        <noscript>
+            <object classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" width="${width}" height="${height}" id="${application}">
+                <param name="movie" value="${swf}.swf" />
+                <param name="quality" value="high" />
+                <param name="bgcolor" value="${bgcolor}" />
+                <param name="allowScriptAccess" value="sameDomain" />
+                <param name="allowFullScreen" value="true" />
+				<param name="wmode" value="opaque" /><!--注意：屏蔽系统右键必须添加此属性>-->
+                <!--[if !IE]>-->
+                <object type="application/x-shockwave-flash" data="${swf}.swf" width="${width}" height="${height}">
+                    <param name="quality" value="high" />
+                    <param name="bgcolor" value="${bgcolor}" />
+                    <param name="allowScriptAccess" value="sameDomain" />
+                    <param name="allowFullScreen" value="true" />
+                <!--<![endif]-->
+                <!--[if gte IE 6]>-->
+                    <p> 
+						为了正常使用功能，请您下载最新的Flash插件。
+                    </p>
+                <!--<![endif]-->
+						<li><a href="install_flash_player_ax.exe" target="_blank">从服务器下载Flash插件(IE浏览器)</a></li>
+						<li><a href="install_flash_player.exe" target="_blank">从服务器下载(其它浏览器)</a></li>
+						<li><a href="http://get.adobe.com/cn/flashplayer/" target="_blank">点击下载最新的Flash插件</a></li>
+                <!--[if !IE]>-->
+                </object>
+                <!--<![endif]-->
+            </object>
+        </noscript>     
+   </body>
+</html>

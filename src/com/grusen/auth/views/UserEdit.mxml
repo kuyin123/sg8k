@@ -1,0 +1,898 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<views1:GrEdit xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			  xmlns:s="library://ns.adobe.com/flex/spark" 
+			  xmlns:mx="library://ns.adobe.com/flex/mx" 
+			  xmlns:views="ppf.tool.components.views.*" 
+			  xmlns:Layouts="ppf.tool.components.spark.Layouts.*"
+			  xmlns:controls="ppf.tool.components.spark.components.controls.*" 
+			  xmlns:validators="ppf.tool.components.mx.validators.*"
+			  width="450" height="620" xmlns:containers="ppf.tool.components.spark.components.containers.*" xmlns:controls1="ppf.tool.components.spark.components.controls.*" xmlns:validators1="ppf.tool.components.mx.validators.*" xmlns:containers1="ppf.tool.components.spark.components.containers.*" xmlns:controls2="ppf.tool.components.spark.components.controls.*" xmlns:views1="ppf.tool.components.views.*" creationComplete="gredit2_creationCompleteHandler(event)" xmlns:controls3="ppf.tool.components.mx.components.controls.*">
+	<fx:Declarations>
+		<!--用户名不能为空-->
+		<mx:StringValidator id="v_name" 
+							source="{t_name}" 
+							requiredFieldError="{SgResourceManager.getTipString('TIP_LOGIN_002')}"
+							property="text" 
+							minLength="{t_name.minChars}"
+							maxLength="100"/> 
+		<!--密码不能为空-->
+		<mx:StringValidator id="v_password" 
+							source="{t_password}" 
+							requiredFieldError="{SgResourceManager.getTipString('TIP_LOGIN_003')}"
+							property="text" 
+							minLength="{t_password.minChars}"
+							maxLength="{t_password.maxChars}"/>
+		<!--请选择角色-->
+		<mx:Validator id="v_radioRole" source="{roleList}" 
+					  requiredFieldError="{SgResourceManager.getTipString('TIP_AUTH_013')}"
+					  property="selectedItem"/>
+		<mx:EmailValidator invalidDomainError="{SgResourceManager.getTipString('TIP_AUTH_022')}" 
+						   invalidPeriodsInDomainError="{SgResourceManager.getTipString('TIP_AUTH_022')}" 
+						   invalidCharError="{SgResourceManager.getTipString('TIP_AUTH_022')}" 
+ 						   invalidIPDomainError="{SgResourceManager.getTipString('TIP_AUTH_022')}"  
+						   missingUsernameError="{SgResourceManager.getTipString('TIP_AUTH_022')}" 
+						   tooManyAtSignsError="{SgResourceManager.getTipString('TIP_AUTH_022')}"   
+						   missingPeriodInDomainError="{SgResourceManager.getTipString('TIP_AUTH_022')}" 
+						   missingAtSignError="{SgResourceManager.getTipString('TIP_AUTH_022')}" 
+ 						   id="v_email" source="{t_email}" required="false" property="text"
+						    />
+		<!--请输入确认密码-->
+		<!--密码不一致，请重新输入-->
+		<validators1:CompareValidator id="v_compare"	
+									 source="{t_confirmPassword}"	
+									 minLength="{t_password.minChars}"
+									 maxLength="{t_password.maxChars}"
+									 property="text" 
+									 requiredFieldError="{SgResourceManager.getTipString('TIP_AUTH_003')}"
+									 compareSource="{t_password}" 								 								
+									 compareProperty="text" 
+									 compareError="{SgResourceManager.getTipString('TIP_AUTH_004')}"/>
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			import com.grusen.auth.AuthDao;
+			import com.grusen.auth.controls.PushRuleManager;
+			import com.grusen.constants.AuthValueConst;
+			import com.grusen.constants.LocaleExtendConst;
+			import com.grusen.constants.NodeTypeConst;
+			import com.grusen.events.ModelEvent;
+			import com.grusen.interfaces.IOrganization;
+			import com.grusen.managers.SgResourceManager;
+			import com.grusen.model.GlobalModel;
+			import com.grusen.model.vo.Machine;
+			import com.grusen.model.vo.Role;
+			import com.grusen.model.vo.TreeItem;
+			import com.grusen.model.vo.User;
+			import com.grusen.services.ServiceConst;
+			
+			import flash.utils.setTimeout;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			import mx.events.ItemClickEvent;
+			import mx.events.ListEvent;
+			import mx.rpc.events.ResultEvent;
+			
+			import ppf.base.frame.AlertUtil;
+			import ppf.base.math.MD5;
+			import ppf.tool.auth.AuthConst;
+			import ppf.tool.auth.AuthUtil;
+			import ppf.tool.components.ValidUtil;
+			import ppf.tool.math.DateUtil;
+			import ppf.tool.rpc.managers.RPCManager;
+			import ppf.tool.text.RestrictUtil;
+			
+			import spark.events.IndexChangeEvent;
+			import spark.events.TextOperationEvent;
+			import spark.layouts.supportClasses.LayoutBase;
+			
+			[Embed(source="assets/email_go.png")]
+			private var ruleicon:Class;
+			
+			[Bindable]
+			/**
+			 * 是否是自身对象，自身对象除去有效期及角色不能编辑外其他均可编辑
+			 */
+			public var isSelf:Boolean = false;
+			
+			private var currentEditUser:User;
+			
+			private var ptextlist:Array;
+			private var smschecklist:Array;
+			private var appchecklist:Array;
+			private var ruleSettingBt:Array;
+			//记录初始化用户信息时的手机号码
+			private var oldPhoneNumber:Array = ["",""];
+			
+			private var pushRuleManager:PushRuleManager;
+			
+			override public function onInit(event:Event=null):void
+			{
+				//refreshModel();
+	 
+				var tmpRole:ArrayCollection= GlobalModel.getInstance().authDao.getRoleList();
+ 				
+				if(!tmpRole){
+				   this.enabled = false;
+				   setTimeout( onInit ,1000 );
+				   return;
+				}
+				
+				this.enabled = true;
+				
+				if(roleArr.length>0)
+					roleArr.removeAll();
+				var curLevel:int=GlobalModel.getInstance().authDao.currUser.roleLevel;
+				var roleid:int = GlobalModel.getInstance().authDao.currUser.roleId;
+				var sel:User = modifyItem as User;
+		 
+				for each(var item:Object in tmpRole)
+				{
+					var role:Object = {};
+					role.name = item.name;
+					role.id = item.id;
+					role.roleLevel=item.roleLevel;
+					if(isAdd)
+					{
+						if(item.roleLevel>curLevel)
+							roleArr.addItem(role);
+						
+					}
+					else  //修改
+					{
+						if(item.roleLevel>=curLevel  || roleid == AuthConst.ENG_DEBUG ||  roleid == AuthConst.ENG_MAINTAIN) //登录用户级别大于等于选中用户级别,如果是工程维护人员则也可以进行修改
+							roleArr.addItem(role);
+					}
+				}
+				
+				if(isAdd)
+				{
+					if(roleArr.length)
+						roleList.selectedValue=roleArr[0].id;
+					//清除掉验证信息
+					drop_list.enabled = true;
+					drop_list.selectedIndex = 8;
+					time.visible = false;
+					
+					rule_setting1.enabled = false;
+					rule_setting2.enabled = false;
+
+				}
+				else
+				{
+					isFirstPwd=true;
+					time.visible = true;
+				}
+				
+				if(null != modifyItem)
+					setRoleRadioBtn();
+			}
+			
+			
+			
+			//控件加载完成后初始化单位下拉项数据
+			override protected function onComplete():void{
+				super.onComplete();
+				
+				ptextlist = [t_phonenumber1 , t_phonenumber2];
+				smschecklist = [is_pushsms1 , is_pushsms2];
+				appchecklist = [is_applogin1 , is_applogin2];
+				ruleSettingBt = [rule_setting1 , rule_setting2];
+				
+				if(!AuthConst.isSuperAdmin){
+				   t_company.dataProvider = GlobalModel.getInstance().cloneTree(true);
+				   t_company.initSelected();
+				}
+				
+			    pushRuleManager = new PushRuleManager();
+			 
+			}
+			
+			private function openRuleSetting(userId:int  ,  phone:String):void{
+				
+				if(!pushRuleManager){
+					pushRuleManager = new PushRuleManager();
+ 				}
+				
+				pushRuleManager.title = "用户事件屏蔽规则设置";
+				
+				cmdManager.mainFrame.addDisplayObject(pushRuleManager);
+				
+				//if(pushRuleManager.isCreationComplete){
+					pushRuleManager.initRule = {userId:userId , phone:phone};
+				//}
+			}
+			
+			override public function onModifyItem(item:Object):void
+			{
+				super.onModifyItem(item);
+		 
+		 
+ 				var user:User = item as User;
+				
+			 
+ 				t_name.text = user.name;
+				t_username.text = (user.username? user.username : "");
+				t_email.text = (user.email? user.email : "");
+				t_remark.text = (user.remark? user.remark : "");
+				
+				t_department.text = (user.department? user.department : "" );
+				t_job.text = (user.post? user.post : "");
+				t_tel.text = (user.landlinePhone? user.landlinePhone : "");
+				
+				//显示单位
+				if(!AuthConst.isSuperAdmin){
+				  if(user.company && user.company.length > 0){
+					var isn:Boolean = isNaN(Number(user.company));
+					    t_company.enabled = !isn;
+					  if(t_company.enabled)
+						t_company.initValue = int(user.company);
+					  else
+						t_company.initValue = -1;
+					  t_company_name.visible = isn;
+					  is_othercompany.selected = isn;
+					  if(is_othercompany.selected)
+						t_company_name.text = user.company;
+				  	  else
+						t_company_name.text = "";
+				  }else{
+					  //t_company.enabled = false;
+					  t_company.initValue = -1;
+					  t_company_name.text = "";
+					  t_company_name.visible = false;
+					  t_company_name.text = "";
+					  is_othercompany.selected = false;
+				  }
+				}
+				
+				
+				//var obj:Object = {P13760221582:{ispushmsg:1,isallowapp:1}};
+				//显示出手机号码
+				oldPhoneNumber = ["",""];
+				if(user.phoneInfo){
+					
+					var tin:int = 0;
+					
+					
+					for(var k in user.phoneInfo){
+						var keyStr:String = String(k);
+						
+						if(keyStr.length == 12 && keyStr.substr(0,1) == "P" &&  !isNaN(Number(keyStr.substr(1,11)))  ){
+							
+							tin ++;
+							if(tin > 2)
+								break;
+							var po:Object = user.phoneInfo[k] as Object;
+							TextInput(ptextlist[tin-1]).text = keyStr.substr(1,11);
+							CheckBox(smschecklist[tin-1]).selected = ("1" == String(po.ispushmsg));
+							CheckBox(appchecklist[tin-1]).selected = ("1" == String(po.isallowapp));
+							oldPhoneNumber[tin-1] = keyStr.substr(1,11);
+						}
+					}
+					
+					
+					/*var pxml:XML = XML(user.phoneInfo);
+					var plist:XMLList = pxml.elements();
+					
+					
+					var ptextlist:Array = [t_phonenumber1 , t_phonenumber2];
+					var smschecklist:Array = [is_pushsms1 , is_pushsms2];
+					var appchecklist:Array = [is_applogin1 , is_applogin2];
+					
+					for each (var x:XML in plist){
+						var tel:String = x.name();
+						tin ++;
+						if(tel && tel.length >= 11){
+							tel = tel.substr(1 , 11);
+						}else{
+							continue;
+						}
+						
+						if(tin > 2)
+							break;
+						
+						TextInput(ptextlist[tin-1]).text = tel;
+						CheckBox(smschecklist[tin-1]).selected = ("1" == x.ispushmsg.toString());
+						CheckBox(appchecklist[tin-1]).selected = ("1" == x.isallowapp.toString());
+					}*/
+				}
+				
+				if(t_phonenumber1.text == "" || checkIsErrorPhonenumber(t_phonenumber1.text) || AuthConst.isSuperAdmin )
+					rule_setting1.enabled = false;
+				else
+					rule_setting1.enabled = true;
+				if(t_phonenumber2.text == "" || checkIsErrorPhonenumber(t_phonenumber2.text) || AuthConst.isSuperAdmin )
+					rule_setting2.enabled = false;
+				else
+					rule_setting2.enabled = true;
+				
+				
+				
+				
+				var croleId:int =  GlobalModel.getInstance().authDao.currUser.roleId;
+				
+				drop_list.selectedIndex = user.deadLine;
+				setRoleRadioBtn();
+				//修改
+				
+				var roleId:int = GlobalModel.getInstance().authDao.currUser.roleId;
+				if(roleArr&&roleArr.length)
+				{
+					var last:int=roleArr.length-1;
+					var r:Object;
+					var le:int=GlobalModel.getInstance().authDao.currUser.roleLevel;
+					//var roleId:int = GlobalModel.getInstance().authDao.currUser.roleId;
+					
+					if( roleId != AuthConst.ENG_DEBUG  && roleId != AuthConst.ENG_MAINTAIN){
+						for(var i:int=last;i>=0;i--)
+						{
+							r=roleArr.getItemAt(i);
+							//删除等级大于登录用户
+							if(r.roleLevel<le)
+								roleArr.removeItemAt(i);
+								//如果角色等级与登录用户相同，但选中用户的级别小于登录用户
+							else if(r.roleLevel==le&&user.roleLevel>le)
+								roleArr.removeItemAt(i);	
+							
+						}
+						
+						
+					} 
+					
+   				}
+				
+				if( roleId != AuthConst.ENG_DEBUG  && roleId != AuthConst.ENG_MAINTAIN){
+					t_name.editable = false;
+					t_name.enabled = false;
+				}else{
+					t_name.editable = true;
+					t_name.enabled = true;
+				}
+				
+				if(user.roleLevel<=le &&!isAdd)//当前选中角色小于等于当前登陆角色，时间管理不可用
+					drop_list.enabled = false;
+				else
+					drop_list.enabled = true;
+				if(user.createTime)
+					createTime.text = DateUtil.formatDateEx(user.createTime);
+				
+ 				//这里只要是管理员、工程维护人员或自己都可以编辑角色
+				if(  (AuthConst.isAdmin && user.roleLevel==AuthConst.ADMIN &&  isSelf)   ||   croleId == AuthConst.ENG_DEBUG ||  croleId == AuthConst.ENG_MAINTAIN  )
+ 					roleList.enabled=true;
+				
+				//显示密码,取前16位来显示
+				if(user.password == null || user.password == "")
+				{
+					t_password.text = "";
+					t_confirmPassword.text = "";
+				}
+				else
+				{
+					var str:String = user.password.toString();
+					str = str.substr(0,16);
+					t_password.text = str;
+					t_confirmPassword.text = str;
+				}
+				
+				rule_setting1.visible = rule_setting2.visible = ( AuthUtil.checkAuth( AuthValueConst.USER_RULE_SETTING ) &&  !AuthConst.isSuperAdmin  );
+				rule_setting1.includeInLayout = rule_setting2.includeInLayout = (AuthUtil.checkAuth( AuthValueConst.USER_RULE_SETTING ) && !AuthConst.isSuperAdmin);
+			
+				var times:Number;
+				if(user.createTime)
+					times= (new Date).time - user.createTime.time;
+				var day:Number = 24*60*60*1000;
+				switch(user.deadLine)
+				{
+					case 0:
+					if(times>=day)
+						invalid.visible = true;
+					else
+						invalid.visible = false;
+					break;
+					case 1:
+					if(times>=3*day)
+						invalid.visible = true;
+					else
+						invalid.visible = false;
+					break;
+					case 2:
+					if(times>=7*day)
+						invalid.visible = true;
+					else
+						invalid.visible = false;
+					break;
+					case 3:
+					if(times>=30*day)
+						invalid.visible = true;
+					else
+						invalid.visible = false;
+					break;
+					case 4:
+					if(times>=90*day)
+						invalid.visible = true;
+					else
+						invalid.visible = false;
+					break;
+					case 5:
+					if(times>=180*day)
+						invalid.visible = true;
+					else
+						invalid.visible = false;
+					break;
+					case 6:
+					if(times>=365*day)
+						invalid.visible = true;
+					else
+						invalid.visible = false;
+					break;
+					case 7:
+					if(times>=365*3*day)
+						invalid.visible = true;
+					else
+						invalid.visible = false;
+					break;
+					case 8:
+					invalid.visible = false;
+					break;
+				}
+			}
+			
+			private function refreshModel():void{
+				t_name.text = "";
+				t_password.text = "";
+				t_confirmPassword.text="";
+				roleList.selectedValue = null;
+				roleList.errorString = "";
+				drop_list.selectedIndex = 8;
+				
+				t_username.text = "";
+				t_email.text = "";
+				t_remark.text = "";
+				t_tel.text = "";
+				t_job.text = "";
+				t_department.text = "";
+				
+				t_phonenumber1.text = "";
+				t_phonenumber2.text = "";
+				is_pushsms1.selected = false;
+				is_pushsms2.selected = false;
+				is_applogin1.selected = true;
+				is_applogin2.selected = true;
+				
+				t_name.editable = true;
+				t_name.enabled = true;
+				
+				if(!AuthConst.isSuperAdmin){
+					t_company.enabled = true;
+					t_company.initSelected();
+					t_company_name.text = "";
+					t_company_name.visible = false;
+					is_othercompany.selected = false;
+				}
+ 			}
+			
+			override protected function resume():void
+			{
+				super.resume();
+				refreshModel();
+				if (!isAdd)
+ 					roleArr.removeAll();
+ 			}
+			
+			//刷新编辑界面
+			private function refreshUserInfo():void{
+			}
+			
+			private function checkIsErrorPhonenumber(numberStr:String):Boolean{
+				if(!numberStr || numberStr.length <= 0)
+					return false;
+				var isErrorNum:Boolean = false;
+				var pattern:RegExp = /^\d{11}$/;
+				if(numberStr.indexOf(";") >= 0){
+					var numArr:Array = numberStr.split(";");
+					var numCounts:int = 0;
+					while(numArr.length>0){
+						var numStr:String = String(numArr.shift());
+						if(numStr != ""){
+							if(!pattern.test(numStr)){
+								isErrorNum = true;
+							}
+							numCounts ++;
+						}
+					}
+					if(numCounts > 3)
+					{
+						//TIP_AUTH_015
+						//							   最多允许输入3个手机号码"
+						Alert.show(SgResourceManager.getTipString('TIP_AUTH_015'));
+						//this.enabled = true;
+						return true;
+					}
+					
+				}else{
+					isErrorNum  = !pattern.test(numberStr); 
+				}
+				
+				if(isErrorNum)
+				{
+					//请输入正确的手机号码"
+					Alert.show(SgResourceManager.getTipString('TIP_AUTH_016'));
+					//this.enabled = true;
+					return true;
+				}else
+					return false;
+			}
+			
+			override protected function onApply(event:MouseEvent,isSubmit:Boolean=true):Boolean
+			{
+				if (super.onApply(event,isSubmit))
+				{
+		 
+					if(!isAdd){
+						var userss:User=modifyItem as User;
+						var crIds:int =  GlobalModel.getInstance().authDao.currUser.roleLevel;
+						var roleId:int = GlobalModel.getInstance().authDao.currUser.roleId;
+						//虽工程维护的角色级别很低，但这里工程维护人员还是允许其修改其他用户的
+						if(!AuthConst.isSuperAdmin && crIds >= userss.roleLevel && userss.id != GlobalModel.getInstance().authDao.currUser.id && roleId != AuthConst.ENG_DEBUG && roleId != AuthConst.ENG_MAINTAIN ){
+//							"禁止修改更高级别的用户"
+							AlertUtil.show(SgResourceManager.getTipString('TIP_AUTH_017'),SgResourceManager.getString(LocaleExtendConst.PUBLIC,'PUBLIC_OP_010'));
+							this.enabled = true;
+							return true;
+						}
+					}
+					
+			 
+					
+					var user:User = new User;
+					
+					if (!isAdd && null != modifyItem)
+						user.id = modifyItem.id;
+					
+					
+					if(isAdd)
+						user.password = MD5.hash(t_password.text,32);
+					else  //编辑
+					{
+						if(modifyItem && modifyItem is User)
+						{
+							var mUser:User = modifyItem as User;
+								//编辑，密码已经改动
+							var str:String;
+							if(isFirstPwd)  //未改动
+								str = mUser.password;	
+							else  //改动
+								str = MD5.hash(t_password.text,32);
+							user.password = str;
+						}
+					}
+					
+					user.name = t_name.text;
+					user.roleId = int(roleList.selectedValue);
+					user.deadLine = drop_list.selectedIndex;
+					user.username = t_username.text;
+			 
+					user.email = t_email.text;
+					user.remark = t_remark.text;
+					user.post = t_job.text;
+					user.department = t_department.text;
+					user.landlinePhone = t_tel.text;
+					
+					//记录单位
+					if(!AuthConst.isSuperAdmin){
+						if(!is_othercompany.selected){
+							if(null != t_company.m_value && !isNaN( Number(t_company.m_value)) && Number(t_company.m_value) >= 0)
+								user.company = String(t_company.m_value);
+							else
+								user.company = null;
+						}else{
+							if(t_company_name.text == "" || !isNaN(Number(t_company_name.text))  )
+								user.company = null;
+							user.company = t_company_name.text;
+						}
+					}else{
+						if (!isAdd && null != modifyItem){
+							user.company = User(modifyItem).company;
+						}
+					}
+					
+ 					
+					if(t_phonenumber1.text == t_phonenumber2.text && t_phonenumber1.text.length > 0 && !isNaN(Number(t_phonenumber1.text))){
+						AlertUtil.show(SgResourceManager.getTipString('TIP_AUTH_021'),SgResourceManager.getString(LocaleExtendConst.PUBLIC,'PUBLIC_OP_010'));
+						this.enabled = true;
+						return true;
+					}
+					
+					
+ 					for each(var phonetext:TextInput in ptextlist){
+						if(phonetext.text.length > 0  ){
+							if(checkIsErrorPhonenumber(phonetext.text) ){
+								//AlertUtil.show(SgResourceManager.getTipString('TIP_AUTH_016'),SgResourceManager.getString(LocaleExtendConst.PUBLIC,'PUBLIC_OP_010'));
+								this.enabled = true;
+								return true;
+							}
+						}
+					}
+				 
+					
+					//记录手机号码及推送设置
+					user.phoneInfo = {};
+					var telobj:Object;
+					if( t_phonenumber1.text.length > 0 &&  !isNaN(Number( t_phonenumber1.text))){
+						telobj = {ispushmsg:(is_pushsms1.selected? 1:0) , isallowapp:(is_applogin1.selected? 1:0)};
+						user.phoneInfo["P"+t_phonenumber1.text]   =  telobj;
+					}
+					if( t_phonenumber2.text.length > 0 &&  !isNaN(Number( t_phonenumber2.text))){
+						telobj = {ispushmsg:(is_pushsms2.selected? 1:0) , isallowapp:(is_applogin2.selected? 1:0)};
+						user.phoneInfo["P"+t_phonenumber2.text]   =  telobj;
+					}
+					
+					
+					currentEditUser = user;
+					
+					RPCManager.call(ServiceConst.DS_MAINHANDLER,"UpdateUser",user);
+				}
+				return true;
+			}
+			
+			override protected function onResult(event:ResultEvent):void
+			{
+				super.onResult(event);
+				GlobalModel.getInstance().authDao.reLoadUser();
+				
+				//if(isSelf)
+				   //GlobalModel.getInstance().authDao.currUser = currentEditUser;
+				//"保存成功"
+				Alert.show(SgResourceManager.getTipString('TIP_BASE_011'),SgResourceManager.getString(LocaleExtendConst.PUBLIC,'PUBLIC_OP_010'));
+			}
+			
+			override protected function regValidators():void
+			{
+				ValidUtil.registerValidatorsOnPopUp(this,[v_name,v_password,v_compare,v_radioRole,v_email]);
+			}
+			
+			override protected function doValid():Boolean
+			{
+				var isValidForm:Boolean;
+				isValidForm = ValidUtil.validForm(this,false,v_name,v_password,v_compare,v_radioRole,v_email);
+				
+				//其他验证无问题，判断actionId是否重复
+				if (isValidForm)
+				{
+					if (isAdd)
+					{
+						var userName:String = t_name.text;
+						if (!GlobalModel.getInstance().authDao.checkUserName(userName))
+						{
+							isValidForm = false;
+							//"用户名已存在"
+							Alert.show(SgResourceManager.getTipString('TIP_AUTH_018'),SgResourceManager.getString(LocaleExtendConst.PUBLIC,'PUBLIC_OP_010'),Alert.OK|Alert.NONMODAL);
+						}
+					}
+				}
+				return isValidForm;
+			}
+			
+			/**
+			 * 检测界面的权限状态 
+			 */	
+			override protected function checkAuth():void
+			{
+ 				if (isAdd)
+					isEdit=AuthUtil.checkAuth(AuthValueConst.USER_ADD);
+				else
+					isEdit=AuthUtil.checkAuth(AuthValueConst.USER_EDIT);
+				
+				//roleForm.includeInLayout = roleForm.visible = isEdit;
+				//abletimeForm.includeInLayout = abletimeForm.visible = isEdit;
+ 				
+				auth_btnApply = (isEdit || isSelf);
+			}
+			
+			/**
+			 * 设置当前关联角色
+			 * */
+			private function setRoleRadioBtn():void
+			{
+				var user:User=modifyItem as User;
+				roleList.selectedValue = user.roleId;
+//				roleList.selectedValue = (modifyItem as User).roleId;
+			}
+			
+			[Bindable]
+			private var roleArr:ArrayCollection=new ArrayCollection;
+			
+			private var isFirstPwd:Boolean = true;//是否是第一次进入 新密码的输入框
+//			private var isFristCfPwd:Boolean = true;//是否是第一次进入 确认密码的输入框
+			
+			protected function t_confirmPassword_mouseDownHandler(event:MouseEvent):void
+			{
+				if(isFirstPwd)
+				{
+					isFirstPwd = false;
+					t_password.text = "";
+					t_confirmPassword.text = "";
+				}
+			}
+			
+			protected function t_password_mouseDownHandler(event:MouseEvent):void
+			{
+				if(isFirstPwd)
+				{
+					isFirstPwd = false;
+					t_password.text = "";
+					t_confirmPassword.text = "";
+				}
+			}
+			
+			protected function gredit2_creationCompleteHandler(event:FlexEvent):void
+			{
+			 
+				var sources:ArrayCollection = new ArrayCollection ([
+					{label:SgResourceManager.getPublicString('PUBLIC_TIME_027',["1"]),value:1},  //"1天"
+					{label:SgResourceManager.getPublicString('PUBLIC_TIME_027',["3"]),value:2},
+					{label:SgResourceManager.getPublicString('PUBLIC_TIME_021'),value:3},
+					{label:SgResourceManager.getPublicString('PUBLIC_TIME_028',["1"]),value:4},
+					{label:SgResourceManager.getPublicString('PUBLIC_TIME_028',["3"]),value:5},
+					{label:SgResourceManager.getPublicString('PUBLIC_TIME_028',["6"]),value:6},
+					{label:SgResourceManager.getPublicString('PUBLIC_TIME_029',["1"]),value:7},
+					{label:SgResourceManager.getPublicString('PUBLIC_TIME_029',["3"]),value:8},
+					{label:SgResourceManager.getSetString('SET_AUTH_043'),value:9}]);
+				drop_list.dataProvider = sources;			
+			}
+			
+			protected function roleList_changingHandler(event:IndexChangeEvent):void
+			{
+				// TODO Auto-generated method stub
+				if(event.newIndex == 0)
+					drop_list.selectedIndex = 8;
+			}
+			
+			protected function is_othercompany_changeHandler(event:Event):void
+			{
+				if(AuthConst.isSuperAdmin)
+					return;
+				var isSelected:Boolean = is_othercompany.selected;
+ 				t_company.enabled = !isSelected;
+				//t_company.editable = !isSelected;
+				//t_company_name.enabled = isSelected;
+				//t_company_name.editable = isSelected;
+				t_company_name.visible = isSelected;
+ 			}
+			
+			 
+			
+			protected function textInputHandler(event:TextOperationEvent):void
+			{
+				//创建的时候不需要处理
+				if(isAdd)
+					return;
+				var ti:TextInput = event.currentTarget as TextInput;
+				if(ti){
+					var ind:int = ptextlist.indexOf(ti);
+					if(oldPhoneNumber[ind] == "")
+						return;
+					if(ind >= 0 && ind < 2 && ti.text == oldPhoneNumber[ind]){
+						Button(ruleSettingBt[ind]).enabled = true;
+					}else{
+						Button(ruleSettingBt[ind]).enabled = false;
+					}
+				}
+ 			}
+			
+			protected function rule_setting_clickHandler(event:MouseEvent):void
+			{
+				var bt:Button = event.currentTarget as Button;
+				var ind:int = ruleSettingBt.indexOf(bt);
+				
+				if(ind < 0  || ind > 1)
+					return;
+				
+				var pnu:String = TextInput(ptextlist[ind]).text
+				if(modifyItem  && pnu != "" &&  !checkIsErrorPhonenumber(pnu)){
+					openRuleSetting( User(modifyItem).id ,  oldPhoneNumber[ind]);
+				}
+			}
+			
+		]]>
+	</fx:Script>
+	<containers1:Form width="100%" height="100%" gap="0">
+		<!--用户名-->
+		<containers1:FormItem label="{SgResourceManager.getSetString('SET_AUTH_009')}" width="100%" required="true"  height="30"  >
+			<controls2:TextInput id="t_name" width="100%" editable="true" maxChars="25" minChars="2"/>	
+		</containers1:FormItem>
+		<!--姓名-->
+		<containers1:FormItem label="{SgResourceManager.getSetString('SET_AUTH_016')}" width="100%" required="false"  height="30"  >
+			<controls2:TextInput id="t_username" width="100%"  maxChars="25"  />	
+		</containers1:FormItem>
+		<!--!isAdd?'新密码':'初始密码'-->
+		<containers1:FormItem label="{!isAdd?SgResourceManager.getSetString('SET_AUTH_006'):SgResourceManager.getSetString('SET_AUTH_013')}" width="100%" required="true"  height="30"  >
+			<controls2:TextInput id="t_password" width="100%" minChars="1" maxChars="16" editable="{isEdit || isSelf}" 
+								displayAsPassword="true" restrict="{RestrictUtil.PASSWORD_REG}"
+								mouseDown="t_password_mouseDownHandler(event)"/>
+		</containers1:FormItem>
+		<!--确认密码-->
+		<containers1:FormItem label="{SgResourceManager.getSetString('SET_AUTH_007')}" width="100%" required="true"  height="30"  >
+			<controls2:TextInput id="t_confirmPassword" width="100%" minChars="1" maxChars="16" editable="{isEdit || isSelf}" 
+								displayAsPassword="true" restrict="{RestrictUtil.PASSWORD_REG}" mouseDown="t_confirmPassword_mouseDownHandler(event)"/>
+		</containers1:FormItem>
+		<!--关联角色-->
+		<containers1:FormItem id="roleForm" label="{SgResourceManager.getSetString('SET_AUTH_015')}" width="100%" height="103" required="true" includeInLayout="{ AuthConst.isAdmin || !isSelf}" visible="{ AuthConst.isAdmin || !isSelf }">
+			<controls2:RadioButtonList id="roleList" changing="roleList_changingHandler(event)" dataProvider="{roleArr}" enabled="{isEdit}" labelFieldRB="name" valueField="id"
+									  width="100%" height="100%" minHeight="35">
+				<controls:layout>
+					<s:TileLayout requestedRowCount="3" requestedColumnCount="3"
+								  horizontalGap="0" verticalGap="0"/>
+				</controls:layout>
+			</controls2:RadioButtonList>
+		</containers1:FormItem>
+		
+		<!--手机号码1-->
+		<containers1:FormItem label="{SgResourceManager.getSetString('SET_AUTH_017')}1" width="100%" required="false" height="30"    >
+		    <mx:HBox>
+				<controls2:TextInput id="t_phonenumber1" width="90"  restrict="{RestrictUtil.POSITIVE_INT_REG}"  maxChars="11" change="textInputHandler(event)"   />	
+				<s:Button id="rule_setting1" icon="{ruleicon}" width="22"   toolTip="{SgResourceManager.getSetString('SET_AUTH_053')}" click="rule_setting_clickHandler(event)"  enabled="{!AuthConst.isSuperAdmin}" />
+				<s:CheckBox id="is_pushsms1" label="{SgResourceManager.getSetString('SET_AUTH_051')}" enabled="{AuthUtil.checkAuth(AuthValueConst.USER_RULE_SETTING)}" />
+				<s:CheckBox id="is_applogin1" selected="true" label="{SgResourceManager.getSetString('SET_AUTH_052')}" enabled="{AuthUtil.checkAuth(AuthValueConst.USER_RULE_SETTING)}" />
+			</mx:HBox>
+		</containers1:FormItem>
+		<!--手机号码2-->
+		<containers1:FormItem label="{SgResourceManager.getSetString('SET_AUTH_017')}2" width="100%" required="false"  height="30"  >
+			<mx:HBox>
+				<controls2:TextInput id="t_phonenumber2" width="90"  restrict="{RestrictUtil.POSITIVE_INT_REG}"  maxChars="11" change="textInputHandler(event)"  />	
+				<s:Button id="rule_setting2" icon="{ruleicon}" width="22"  toolTip="{SgResourceManager.getSetString('SET_AUTH_053')}" click="rule_setting_clickHandler(event)" enabled="{!AuthConst.isSuperAdmin}"/>
+				<s:CheckBox id="is_pushsms2" label="{SgResourceManager.getSetString('SET_AUTH_051')}" enabled="{AuthUtil.checkAuth(AuthValueConst.USER_RULE_SETTING)}" />
+				<s:CheckBox id="is_applogin2" selected="true" label="{SgResourceManager.getSetString('SET_AUTH_052')}" enabled="{AuthUtil.checkAuth(AuthValueConst.USER_RULE_SETTING)}" />
+			</mx:HBox>
+		</containers1:FormItem>
+		<!--固定电话-->
+		<containers1:FormItem label="{SgResourceManager.getSetString('SET_AUTH_048')}" width="100%" required="false"  height="30"  >
+			<controls2:TextInput id="t_tel" width="100%"  restrict="{RestrictUtil.PHONE_NUMBER}"  maxChars="64"  />	
+		</containers1:FormItem>
+		<!--APP账号-->
+		<!--containers1:FormItem label="{SgResourceManager.getSetString('SET_AUTH_018')}"  width="100%" required="false">
+			<controls2:TextInput id="t_wechatid" width="100%"  maxChars="64"  restrict="{RestrictUtil.PHONE_NUMBER}" />	
+		</containers1:FormItem-->
+ 		<!--单位-->
+		<containers1:FormItem visible="{!AuthConst.isSuperAdmin}" includeInLayout="{!AuthConst.isSuperAdmin}" label="{SgResourceManager.getSetString('SET_AUTH_047')}" width="100%" required="false"  height="30"  >
+			<mx:HBox>
+				<controls3:DropDownList  id="t_company" width="130" isTree="true" itemValueField="id"   
+										 m_selectObjectTypeNum="{[NodeTypeConst.ORGANIZATION_SUB_FACTORY , NodeTypeConst.ORGANIZATION_FACTORY , NodeTypeConst.ORGANIZATION_GROUP]}"  textAlign="left" />	
+				<s:CheckBox id="is_othercompany" label="{SgResourceManager.getSetString('SET_AUTH_054')}" change="is_othercompany_changeHandler(event)" />
+				<controls2:TextInput  visible="false" id="t_company_name" width="100"  maxChars="30" minChars="2"/>	
+			</mx:HBox>
+			
+		</containers1:FormItem>
+		<!--部门-->
+		<containers1:FormItem label="{SgResourceManager.getSetString('SET_AUTH_049')}" width="100%" required="false"  height="30"  >
+			<controls2:TextInput id="t_department" width="100%"  maxChars="256"  />	
+		</containers1:FormItem>
+		<!--职位-->
+		<containers1:FormItem label="{SgResourceManager.getSetString('SET_AUTH_050')}" width="100%" required="false"  height="30"  >
+			<controls2:TextInput id="t_job" width="100%"  maxChars="256"  />	
+		</containers1:FormItem>
+		<!--邮箱-->
+		<containers1:FormItem label="{SgResourceManager.getSetString('SET_AUTH_019')}" width="100%" required="false"  height="30"  >
+			<controls2:TextInput id="t_email" width="100%"  maxChars="256"  />	
+		</containers1:FormItem>
+		<!--备注-->
+		<containers1:FormItem label="{SgResourceManager.getSetString('SET_AUTH_020')}" width="100%" required="false"  height="30"  >
+			<controls2:TextInput id="t_remark" width="100%"  maxChars="512"  />	
+		</containers1:FormItem>
+		<!--有效期限-->
+		<containers1:FormItem id="abletimeForm"  label="{SgResourceManager.getSetString('SET_AUTH_021')}" width="100%" required="true"  
+							  includeInLayout="{AuthConst.isAdmin || !isSelf}" visible="{AuthConst.isAdmin || !isSelf}"  height="30"  >
+			<s:DropDownList  selectedIndex="8" labelField="label" id="drop_list" width="100" enabled="{isEdit}"/>
+		</containers1:FormItem>
+		<containers1:FormItem >
+			<s:HGroup id="time" visible="false">
+				<!--创建时间-->
+				<s:Label text="{SgResourceManager.getSetString('SET_AUTH_022')}：" textAlpha="0.6"/>
+				<s:Label id="createTime" text="" textAlpha="0.6"/>
+				<!--已过期-->
+				<s:Label id="invalid" text="{SgResourceManager.getSetString('SET_AUTH_023')}" textAlpha="0.6" visible="false"/>
+			</s:HGroup>
+		</containers1:FormItem>
+	</containers1:Form>
+</views1:GrEdit>
