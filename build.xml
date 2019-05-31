@@ -1,0 +1,209 @@
+<project name="Ant Compac App" default="main" basedir=".">
+	<property name="binDir" value="${basedir}/bin-debug"/>
+	<property name="publishDir" value="/publish/server/pg/sg8kinstall/sg8k_ui"/>
+	<property name="srcDir" value="${basedir}/src"/>
+	<property name="sdkVersion" value="4.6.0.23201"/>
+	<property name="template.dir" value="${basedir}/html-template"/>
+	<property name="rslLib" value="${FLEX_HOME}/frameworks/rsls"/>
+	
+	<taskdef resource="flexTasks.tasks" classpath="${FLEX_HOME}/ant/lib/flexTasks.jar"/>
+	
+	<target name="main">
+		<echo message="start to build GR8K..."></echo>
+		<antcall target="fileOper"/>
+		<antcall target="en_US"/>
+		<antcall target="zh_CN"/>
+		<antcall target="mxmlcOper"/>
+		<antcall target="wrapper"/>
+		<antcall target="copyRsl"/>
+		<echo message="build GR8K Success!"></echo>
+		<copy todir="${publishDir}">
+			  <fileset dir="${binDir}">
+			  </fileset>
+		</copy>
+	</target>
+	<!--文件操作-->
+	<target name="fileOper">
+		<delete dir="${binDir}"/>
+		<copy todir="${binDir}/assets">
+			<fileset dir="${srcDir}/assets">
+				<include name="*.*"/>
+			</fileset>
+		</copy>
+		<copy todir="${binDir}/xml">
+			<fileset dir="${srcDir}/xml">
+				<include name="**/*.*"/>
+			</fileset>
+		</copy>
+		<copy todir="${binDir}">
+			<fileset dir="${srcDir}">
+				<include name="install_flash_player_ax.exe"/>
+				<include name="install_flash_player.exe"/>
+				<include name="uninstall_flash_player_32bit.exe"/>
+				<include name="fp.html"/>
+			</fileset>
+		</copy>
+	</target>
+	<!--语言包编译-->
+	<target name="zh_CN">
+		<mxmlc locale="zh_CN" output="${binDir}/locale/zh_CN/resources.swf">
+			<source-path>locale/{locale}</source-path>
+			<!-- 系统默认编译的语言包 -->
+			<include-resource-bundles>collections</include-resource-bundles>
+			<include-resource-bundles>components</include-resource-bundles>
+			<include-resource-bundles>core</include-resource-bundles>
+			<include-resource-bundles>effects</include-resource-bundles>
+			<include-resource-bundles>layout</include-resource-bundles>
+			<include-resource-bundles>skins</include-resource-bundles>
+			<include-resource-bundles>sparkEffects</include-resource-bundles>
+			<include-resource-bundles>styles</include-resource-bundles>
+			<include-resource-bundles>textLayout</include-resource-bundles>
+			<include-resource-bundles>validators</include-resource-bundles>
+			<include-resource-bundles>controls</include-resource-bundles>
+			<!-- 自定义编译的语言包 -->
+			<include-resource-bundles>public</include-resource-bundles>
+			<include-resource-bundles>view</include-resource-bundles>
+			<include-resource-bundles>server_code</include-resource-bundles>
+		</mxmlc>
+	</target>
+	<target name="en_US">
+		<mxmlc locale="en_US" output="${binDir}/locale/en_US/resources.swf"
+			incremental="false" maxmemory="512m" optimize="true" warnings="true">
+			<source-path>locale/{locale}</source-path>
+			<!-- 系统默认编译的语言包 -->
+			<include-resource-bundles>collections</include-resource-bundles>
+			<include-resource-bundles>components</include-resource-bundles>
+			<include-resource-bundles>core</include-resource-bundles>
+			<include-resource-bundles>effects</include-resource-bundles>
+			<include-resource-bundles>layout</include-resource-bundles>
+			<include-resource-bundles>skins</include-resource-bundles>
+			<include-resource-bundles>sparkEffects</include-resource-bundles>
+			<include-resource-bundles>styles</include-resource-bundles>
+			<include-resource-bundles>textLayout</include-resource-bundles>
+			<include-resource-bundles>validators</include-resource-bundles>
+			<include-resource-bundles>controls</include-resource-bundles>
+			<!-- 自定义编译的语言包 -->
+			<include-resource-bundles>public</include-resource-bundles>
+		</mxmlc>
+	</target>
+	<!--mxml编译-->
+	<target name="mxmlcOper">
+		<mxmlc file="${srcDir}/style.css" output="${binDir}/style.swf">
+			<compiler.library-path dir="${basedir}/libs" append="true">  
+				<include name="point.swc"/>
+			</compiler.library-path>
+		</mxmlc>
+		<!--指定swf-verison为16，target-player为11.3，否则右键菜单无法使用-->
+		<mxmlc file="${basedir}/src/index.mxml" output="${basedir}/bin-debug/index.swf"
+			keep-generated-actionscript="false"
+			actionscript-file-encoding="UTF-8"
+		    incremental="true"
+			optimize="true"
+			debug="false"
+			strict = "false"
+			maxmemory="1024m"
+			warnings="false"
+			static-rsls="false"
+			target-player="11.3"
+			swf-version="16"
+			>
+			
+			<!-- framework-->
+			<runtime-shared-library-path path-element="${FLEX_HOME}/frameworks/libs/framework.swc">
+		        <url rsl-url="${rslLib}/framework_${sdkVersion}.swz" policy-file-url=""/>
+		        <url rsl-url="http://fpdownload.adobe.com/pub/swz/flex/${sdkVersion}/framework_${sdkVersion}.swz" policy-file-url="http://fpdownload.adobe.com/pub/swz/crossdomain.xml"/>
+	     	</runtime-shared-library-path>
+			<!--textLayout-->
+			<runtime-shared-library-path path-element="${FLEX_HOME}/frameworks/libs/textLayout.swc">
+		        <url rsl-url="${rslLib}/textLayout_2.0.0.232.swz" policy-file-url=""/>
+		        <url rsl-url="http://fpdownload.adobe.com/pub/swz/tlf/2.0.0.232/textLayout_2.0.0.232.swz" policy-file-url="http://fpdownload.adobe.com/pub/swz/crossdomain.xml"/>
+	    	</runtime-shared-library-path>
+			<!--rpc-->
+			<runtime-shared-library-path path-element="${FLEX_HOME}/frameworks/libs/rpc.swc">
+		        <url rsl-url="${rslLib}/rpc_${sdkVersion}.swz" policy-file-url=""/>
+		        <url rsl-url="http://fpdownload.adobe.com/pub/swz/flex/${sdkVersion}/rpc_${sdkVersion}.swz" policy-file-url="http://fpdownload.adobe.com/pub/swz/crossdomain.xml"/>
+	    	</runtime-shared-library-path>
+			<!--mx-->
+			<runtime-shared-library-path path-element="${FLEX_HOME}/frameworks/libs/mx/mx.swc">
+		        <url rsl-url="${rslLib}/mx_${sdkVersion}.swz" policy-file-url=""/>
+		        <url rsl-url="http://fpdownload.adobe.com/pub/swz/flex/${sdkVersion}/mx_${sdkVersion}.swz" policy-file-url="http://fpdownload.adobe.com/pub/swz/crossdomain.xml"/>
+	    	</runtime-shared-library-path>
+			<!--spark-->
+			<runtime-shared-library-path path-element="${FLEX_HOME}/frameworks/libs/spark.swc">
+		        <url rsl-url="${rslLib}/spark_${sdkVersion}.swz" policy-file-url=""/>
+		        <url rsl-url="http://fpdownload.adobe.com/pub/swz/flex/${sdkVersion}/spark_${sdkVersion}.swz" policy-file-url="http://fpdownload.adobe.com/pub/swz/crossdomain.xml"/>
+	    	</runtime-shared-library-path>
+			<!--sparkskins-->
+			<runtime-shared-library-path path-element="${FLEX_HOME}/frameworks/libs/sparkskins.swc">
+		        <url rsl-url="${rslLib}/sparkskins_${sdkVersion}.swz" policy-file-url=""/>
+		        <url rsl-url="http://fpdownload.adobe.com/pub/swz/flex/${sdkVersion}/sparkskins_${sdkVersion}.swz" policy-file-url="http://fpdownload.adobe.com/pub/swz/crossdomain.xml"/>
+	    	</runtime-shared-library-path>
+			
+			<use-network>false</use-network>
+			
+			<load-config filename="${FLEX_HOME}/frameworks/flex-config.xml"/>
+	        <source-path path-element="${FLEX_HOME}/frameworks"/>
+			<!--在服务端 连接的GrusenLib-->
+			<compiler.library-path dir="../../Job_BaseLib/workspace/bin" append="true">  
+				<include name="BaseLib.swc"/>
+			</compiler.library-path>
+			<compiler.library-path dir="../../Job_ToolLib/workspace/bin" append="true">  
+				<include name="ToolLib.swc"/>
+			</compiler.library-path>
+			<!--本地编译 链接的GrusenLib-->
+			<!--<compiler.library-path dir="../BaseLib/bin" append="true">  
+				<include name="BaseLib.swc"/>
+			</compiler.library-path>
+			<compiler.library-path dir="../ToolLib/bin" append="true">  
+				<include name="ToolLib.swc"/>
+			</compiler.library-path>-->
+			
+			<compiler.library-path dir="${basedir}/libs" append="true">  
+				<include name="blooddy_crypto.swc"/>
+			</compiler.library-path>
+			
+			<includes>com.grusen.machine.controls.NodeManager</includes>
+			<includes>com.grusen.machine.controls.MachineManager</includes>
+			<includes>com.grusen.auth.controls.RoleManager</includes>
+			<includes>com.grusen.auth.controls.UserManager</includes>
+			<includes>com.grusen.auth.controls.AuthManager</includes>
+			<includes>com.grusen.machine.controls.DeviationControl</includes>
+			<includes>com.grusen.machine.controls.CollectorManager</includes>
+			<includes>com.grusen.upgrade.controls.UpgradeManager</includes>
+			<includes>com.grusen.reports.controls.FactoryReportSet</includes>
+			<includes>com.grusen.reports.controls.MachineReportSet</includes>
+			<includes>com.grusen.machine.views.opc.OpcLinkPanel</includes>
+			<includes>com.grusen.overview.OverViewManager</includes>
+		</mxmlc>
+	</target>
+	<!--执行对swf进行html包裹，可以传递一些参数  template="express-installation"-->
+	<target name="wrapper">
+	    <html-wrapper
+	            output="${binDir}"
+	            file="index.html"
+	            swf="index"
+	            history="true"
+	            express-install="true"
+	            version-detection="true"
+	            version-major="10"
+	            version-minor="2"
+	            version-revision="0"
+	            height="100%"
+	            width="100%"
+	    	    title="SG8000大型旋转机械在线状态监测及分析系统 - 沈鼓测控"
+				/>
+	  </target>
+      <!--rsl库 framework.swc-->
+	  <target name="copyRsl">
+	  	<copy todir="${binDir}">
+	  		<fileset dir="${rslLib}">
+	  			<include name="framework_${sdkVersion}.swf"/>
+	  			<include name="rpc_${sdkVersion}.swf"/>
+  				<include name="spark_${sdkVersion}.swf"/>
+  				<include name="sparkskins_${sdkVersion}.swf"/>
+	  			<include name="mx_${sdkVersion}.swf"/>
+	  			<include name="textLayout_2.0.0.232.swf"/>
+	  		</fileset>
+	  	</copy>
+	  </target>
+</project>

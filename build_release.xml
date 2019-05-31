@@ -1,0 +1,76 @@
+<project name="Flex Ant Tasks Build Script" default="main">
+<!-- 
+file 是需要编译的文件  
+output 是编译生成的目标文件
+keep-generated-actionscript 将mxml反编译成as代码
+load-externs 加载共享库
+load-config:    编译需要使用的配置文件  路径一般不变  为${FLEX_HOME}/frameworks/flex-config.xml
+source-path:    编译的源代码位置
+compiler.debug:    是否以debug编译
+-->
+	<!-- 导入 build.properties 变量配置文件 -->
+	<property file="build_sg8k.properties" />
+	
+	<!-- points to our flexTasks.jar we copied to the libs folder to distribute with the project -->
+	<taskdef resource="flexTasks.tasks" classpath="${LIBS_DIR}/flexTasks.jar"/> 
+	
+	<!-- 编译初始化，删除原来的文件 -->
+	<target name="init">
+		<delete dir="${CLEAN_DIR_RELEASE_CSS}"/>
+		<delete dir="${CLEAN_DIR_RELEASE_LOCALE}"/>
+	</target>
+	
+	<!-- main -->
+	<target name="main" depends="init">
+		<antcall target="en_US"></antcall>
+		<antcall target="zh_CN"></antcall>
+		<!--<antcall target="style"></antcall>-->
+	</target>
+	
+	<!-- CSS -->
+	<!--<target name="style">
+		<mxmlc file="${CSS_DIR}/style.css" output="${OUTPUT_DEBUG}/css/style.swf"/>
+	</target>-->
+	
+	<target name="zh_CN">
+			<mxmlc locale="zh_CN" output="${OUTPUT_RELEASE}/locale/zh_CN/resources.swf">
+				<source-path>locale/{locale}</source-path>
+				<!-- 系统默认编译的语言包 -->
+				<include-resource-bundles>collections</include-resource-bundles>
+				<include-resource-bundles>components</include-resource-bundles>
+				<include-resource-bundles>core</include-resource-bundles>
+				<include-resource-bundles>effects</include-resource-bundles>
+				<include-resource-bundles>layout</include-resource-bundles>
+				<include-resource-bundles>skins</include-resource-bundles>
+				<include-resource-bundles>sparkEffects</include-resource-bundles>
+				<include-resource-bundles>styles</include-resource-bundles>
+				<include-resource-bundles>textLayout</include-resource-bundles>
+				<include-resource-bundles>validators</include-resource-bundles>
+				<include-resource-bundles>controls</include-resource-bundles>
+				<!-- 自定义编译的语言包 -->
+				<include-resource-bundles>public</include-resource-bundles>
+				<include-resource-bundles>view</include-resource-bundles>
+				<include-resource-bundles>server_code</include-resource-bundles>
+				<include-resource-bundles>diagnosis_code</include-resource-bundles>
+			</mxmlc>
+		</target>
+	<target name="en_US">
+		<mxmlc locale="en_US" output="${OUTPUT_RELEASE}/locale/en_US/resources.swf">
+			<source-path>locale/{locale}</source-path>
+			<!-- 系统默认编译的语言包 -->
+			<include-resource-bundles>collections</include-resource-bundles>
+			<include-resource-bundles>components</include-resource-bundles>
+			<include-resource-bundles>core</include-resource-bundles>
+			<include-resource-bundles>effects</include-resource-bundles>
+			<include-resource-bundles>layout</include-resource-bundles>
+			<include-resource-bundles>skins</include-resource-bundles>
+			<include-resource-bundles>sparkEffects</include-resource-bundles>
+			<include-resource-bundles>styles</include-resource-bundles>
+			<include-resource-bundles>textLayout</include-resource-bundles>
+			<include-resource-bundles>validators</include-resource-bundles>
+			<include-resource-bundles>controls</include-resource-bundles>
+			<!-- 自定义编译的语言包 -->
+			<include-resource-bundles>public</include-resource-bundles>
+		</mxmlc>
+	</target>
+</project>
